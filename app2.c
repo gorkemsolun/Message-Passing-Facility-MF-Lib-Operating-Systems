@@ -20,8 +20,7 @@ void test_messageflow_2p1mq();
 void test_messageflow_4p2mq();
 
 
-int
-main(int argc, char** argv) {
+int main(int argc, char** argv) {
     totalcount = COUNT;
     if (argc != 2) {
         printf("usage: app2 numberOfMessages\n");
