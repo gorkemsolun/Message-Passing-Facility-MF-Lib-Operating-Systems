@@ -1,3 +1,4 @@
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -9,16 +10,27 @@
 
 // write the signal handler function
 // it will call mf_destroy()
-//
+// Termination can be achieved through the kill command or
+// by pressing Ctrl - C or Ctrl - D at the command line if the server is running in the foreground
+// TODO - Test this function
+void sigint_handler(int signum) {
+    printf("Caught signal, MF destroy %d\n", signum);
+    mf_destroy();
+    exit(0);
+}
 
-int
-main(int argc, char* argv[]) {
+int main(int argc, char* argv[]) {
+
+    if (signal(SIGINT, sigint_handler) == SIG_ERR) {
+        printf("\ncan't catch SIGINT\n");
+    }
 
     printf("mfserver pid=%d\n", (int)getpid());
 
     // register the signal handler function
 
 
+    // TODO - call mf_init() to read the config file
     mf_init(); // will read the config file
 
     while (1)

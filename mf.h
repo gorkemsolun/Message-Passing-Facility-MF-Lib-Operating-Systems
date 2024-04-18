@@ -28,6 +28,11 @@
 #define MAX_MQNAMESIZE 128
 // max message queue name size
 
+#define MF_SUCCESS 0
+// successful completion
+#define MF_ERROR -1
+// unseccessful completion
+
 
 int mf_init();
 int mf_destroy();
