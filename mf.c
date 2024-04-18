@@ -13,6 +13,9 @@ struct MFConfig {
     char SHMEM_NAME[MAXFILENAME]; // TODO: check maxfilename parameter
 };
 
+// Helper function prototypes
+int read_config_file(struct MFConfig* config);
+
 // Start of the library functions
 
 // TODO: Create a shared memory region where the message queues will be stored and initialize
