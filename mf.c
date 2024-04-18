@@ -6,62 +6,51 @@
 #include <string.h>
 #include "mf.h"
 
-int mf_init()
-{
+int mf_init() {
     return (0);
 }
 
-int mf_destroy()
-{
+int mf_destroy() {
     return (0);
 }
 
-int mf_connect()
-{
-    return (0);
-}
-   
-int mf_disconnect()
-{
+int mf_connect() {
     return (0);
 }
 
-int mf_create(char *mqname, int mqsize)
-{
+int mf_disconnect() {
     return (0);
 }
 
-int mf_remove(char *mqname)
-{
+int mf_create(char* mqname, int mqsize) {
+    return (0);
+}
+
+int mf_remove(char* mqname) {
     return (0);
 }
 
 
-int mf_open(char *mqname)
-{
+int mf_open(char* mqname) {
     return (0);
 }
 
-int mf_close(int qid)
-{
+int mf_close(int qid) {
     return(0);
 }
 
 
-int mf_send (int qid, void *bufptr, int datalen)
-{
-    printf ("mf_send called\n");
+int mf_send(int qid, void* bufptr, int datalen) {
+    printf("mf_send called\n");
     return (0);
 }
 
-int mf_recv (int qid, void *bufptr, int bufsize)
-{
-    printf ("mf_recv called\n");
+int mf_recv(int qid, void* bufptr, int bufsize) {
+    printf("mf_recv called\n");
     return (0);
 }
 
-int mf_print()
-{
+int mf_print() {
     return (0);
 }
 

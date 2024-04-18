@@ -21,11 +21,10 @@ void test_messageflow_4p2mq();
 
 
 int
-main(int argc, char **argv)
-{
+main(int argc, char** argv) {
     totalcount = COUNT;
     if (argc != 2) {
-        printf ("usage: app2 numberOfMessages\n");
+        printf("usage: app2 numberOfMessages\n");
         exit(1);
     }
     if (argc == 2)
@@ -36,32 +35,31 @@ main(int argc, char **argv)
     test_messageflow_2p1mq();
     //test_messageflow_4p2mq();
 
-	return 0;
+    return 0;
 }
 
 
-void test_messageflow_2p1mq()
-{
-    int ret1,   qid;
+void test_messageflow_2p1mq() {
+    int ret1, qid;
     char sendbuffer[MAX_DATALEN];
     int n_sent;
     char recvbuffer[MAX_DATALEN];
-    int sentcount = 0; 
-    int receivedcount = 0; 
+    int sentcount = 0;
+    int receivedcount = 0;
     int i;
-    
+
     mf_connect();
-    mf_create ("mq1", 16); //  create mq;  size in KB
+    mf_create("mq1", 16); //  create mq;  size in KB
 
     ret1 = fork();
-    if (ret1 ==  0) {
+    if (ret1 == 0) {
         //  process - P1
         //  will create a message queue
         mf_connect();
         qid = mf_open("mq1");
         while (1) {
             n_sent = rand() % MAX_DATALEN;
-            mf_send(qid, (void *) sendbuffer, n_sent);
+            mf_send(qid, (void*)sendbuffer, n_sent);
             sentcount++;
             if (sentcount == totalcount)
                 break;
@@ -70,13 +68,13 @@ void test_messageflow_2p1mq()
         mf_disconnect();
         exit(0);
     }
-    ret1  = fork();
+    ret1 = fork();
     if (ret1 == 0) {
         //  process - P2
         mf_connect();
         qid = mf_open("mq1");
         while (1) {
-            mf_recv(qid, (void *) recvbuffer, MAX_DATALEN);
+            mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);
             receivedcount++;
             if (receivedcount == totalcount)
                 break;
@@ -85,19 +83,18 @@ void test_messageflow_2p1mq()
         mf_disconnect();
         exit(0);
     }
-    
+
     for (i = 0; i < 2; ++i)
         wait(NULL);
-    
+
     mf_remove("mq1");
-    mf_disconnect(); 
+    mf_disconnect();
 }
 
 
 
 
-void test_messageflow_4p2mq()
-{
+void test_messageflow_4p2mq() {
     int ret1, qid;
     char sendbuffer[MAX_DATALEN];
     int n_sent;
@@ -105,12 +102,12 @@ void test_messageflow_4p2mq()
     int sentcount = 0;
     int receivedcount = 0;
     int i;
-    
-    mf_connect();
-    mf_create ("mq1", 16); //  create mq;  size in KB
-    mf_create ("mq2", 16); //  create mq;  size in KB
 
-    
+    mf_connect();
+    mf_create("mq1", 16); //  create mq;  size in KB
+    mf_create("mq2", 16); //  create mq;  size in KB
+
+
     ret1 = fork();
     if (ret1 == 0) {
         // P1
@@ -120,7 +117,7 @@ void test_messageflow_4p2mq()
         qid = mf_open("mq1");
         while (1) {
             n_sent = rand() % MAX_DATALEN;
-            mf_send(qid, (void *) sendbuffer, n_sent);
+            mf_send(qid, (void*)sendbuffer, n_sent);
             sentcount++;
             if (sentcount == totalcount)
                 break;
@@ -137,7 +134,7 @@ void test_messageflow_4p2mq()
         mf_connect();
         qid = mf_open("mq1");
         while (1) {
-            mf_recv(qid, (void *) recvbuffer, MAX_DATALEN);
+            mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);
             receivedcount++;
             if (receivedcount == totalcount)
                 break;
@@ -146,7 +143,7 @@ void test_messageflow_4p2mq()
         mf_disconnect();
         exit(0);
     }
-    
+
 
     ret1 = fork();
     if (ret1 == 0) {
@@ -157,7 +154,7 @@ void test_messageflow_4p2mq()
         qid = mf_open("mq2");
         while (1) {
             n_sent = rand() % MAX_DATALEN;
-            mf_send(qid, (void *) sendbuffer, n_sent);
+            mf_send(qid, (void*)sendbuffer, n_sent);
             sentcount++;
             if (sentcount == totalcount)
                 break;
@@ -174,7 +171,7 @@ void test_messageflow_4p2mq()
         mf_connect();
         qid = mf_open("mq2");
         while (1) {
-            mf_recv(qid, (void *) recvbuffer, MAX_DATALEN);
+            mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);
             receivedcount++;
             if (receivedcount == totalcount)
                 break;
@@ -183,10 +180,10 @@ void test_messageflow_4p2mq()
         mf_disconnect();
         exit(0);
     }
-    
+
     for (i = 0; i < 4; ++i)
         wait(NULL);
-    
+
     mf_remove("mq1");
     mf_remove("mq2");
     mf_disconnect();

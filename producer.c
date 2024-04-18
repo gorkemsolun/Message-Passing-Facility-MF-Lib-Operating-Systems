@@ -19,15 +19,14 @@ char mqname[32] = "mq1";
 int totalcount = COUNT;
 
 int
-main(int argc, char **argv)
-{
+main(int argc, char** argv) {
     int sentcount, qid, n_sent;
     char sendbuffer[MAX_DATALEN];
     struct timespec t1;
-    
+
     totalcount = COUNT;
     if (argc != 2) {
-        printf ("usage: ./producer numberOfMessages\n");
+        printf("usage: ./producer numberOfMessages\n");
         exit(1);
     }
     if (argc == 2)
@@ -41,24 +40,23 @@ main(int argc, char **argv)
     sentcount = 0;
     while (1) {
         if (sentcount < totalcount) {
-	    // generate a random data size
-            n_sent = 1 + (rand() % (MAX_DATALEN - 1)); 
-	    // data size is at least 1
+            // generate a random data size
+            n_sent = 1 + (rand() % (MAX_DATALEN - 1));
+            // data size is at least 1
             sendbuffer[0] = 1;
-            mf_send(qid, (void *) sendbuffer, n_sent);
+            mf_send(qid, (void*)sendbuffer, n_sent);
             sentcount++;
-            printf ("sent data message %d\n", sentcount);
-        }
-        else {
+            printf("sent data message %d\n", sentcount);
+        } else {
             sendbuffer[0] = -1;
-            mf_send(qid, (void *) sendbuffer, 1);
-            printf ("sent END OF DATA message\n");
+            mf_send(qid, (void*)sendbuffer, 1);
+            printf("sent END OF DATA message\n");
             break;
         }
     }
 
     mf_close(qid);
     mf_disconnect();
-	return 0;
+    return 0;
 }
 
