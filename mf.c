@@ -6,14 +6,21 @@
 #include <assert.h>
 #include <sys/mman.h>
 #include <string.h>
+#include <semaphore.h>
 #include "mf.h"
 
 struct MFConfig {
     int SHMEM_SIZE;
     int MAX_MSGS_IN_QUEUE;
     int MAX_QUEUES_IN_SHMEM;
-    char SHMEM_NAME[MAXFILENAME]; // TODO: check maxfilename parameter
+    char SHMEM_NAME[MAXFILENAME];
 };
+
+// Global variables
+struct MFConfig config; // Configuration parameters
+sem_t* semaphores; // Semaphore array for each message queue
+void* shared_memory_address; // Address of the shared memory region
+int shared_memory_id; // ID of the shared memory region
 
 // Helper function prototypes
 int read_config_file(struct MFConfig* config);
@@ -31,13 +38,13 @@ void print_MFConfig(struct MFConfig* config);
 // The fixed portion may include the number of message queues, the size of each message queue, the number of messages in each queue,
 // names of the semaphores, and configuration parameters.
 // TODO: Test the created shared memory region and the creation of the shared memory region
-// TODO: Create a semaphore to protect the shared memory region and the message queues
-// TODO: Read the configuration file and initialize the shared memory region and the semaphore
-// TODO: Upon successful initialization, return 0 else return -1
+// TODO: Create a semaphore to protect the shared memory region and the message queues, I don't know if it is necessary, not implemented yet
+// TODO UPDATE: I have added the semaphore array for each message queue, initialize the array after reading the configuration file, TEST NEEDED
+// Reads the configuration file
+// TODO: Test the read_config_file function
 int mf_init() {
     // Read the configuration file
     // TODO: Test read_config_file function, Gorkem tested it in mf_connect()
-    struct MFConfig config;
     int conf_status = read_config_file(&config);
     if (conf_status == MF_ERROR) {
         printf("Error: Could not read the configuration file\n");
@@ -45,7 +52,7 @@ int mf_init() {
     }
 
     // Create a shared memory region
-    int shared_memory_id = shm_open(config.SHMEM_NAME, O_CREAT | O_RDWR, 0666);
+    shared_memory_id = shm_open(config.SHMEM_NAME, O_CREAT | O_RDWR, 0666);
     if (shared_memory_id == -1) {
         printf("Error: Could not create the shared memory region\n");
         return (MF_ERROR);
@@ -62,7 +69,7 @@ int mf_init() {
     }
 
     // Map the shared memory region to the address space of the calling process
-    void* shared_memory_address = mmap(NULL, shared_memory_size, PROT_READ | PROT_WRITE, MAP_SHARED, shared_memory_id, 0);
+    shared_memory_address = mmap(NULL, shared_memory_size, PROT_READ | PROT_WRITE, MAP_SHARED, shared_memory_id, 0);
     if (shared_memory_address == MAP_FAILED) {
         printf("Error: Could not map the shared memory region to the address space of the calling process\n");
         close(shared_memory_id);
@@ -70,11 +77,49 @@ int mf_init() {
         return (MF_ERROR);
     }
 
+    // Initialize the semaphore array
+    semaphores = (sem_t*)malloc(config.MAX_QUEUES_IN_SHMEM * sizeof(sem_t));
 
     return (MF_SUCCESS);
 }
 
+// This function will be invoked by the mfserver program during termination.
+// Perform any necessary cleanup and deallocation operations before the program exits
+// including removing the shared memory and all the synchronization objects to ensure a clean system state
+// Destroys the shared memory region
+// TODO: Test destroying the shared memory region
+// Destroys the semaphores
+// TODO: Test destroying the semaphores
+// TODO: Check if the semaphore array is needed, this is related to mf_init() function
 int mf_destroy() {
+    // Remove the synchronization objects, free the semaphore array
+    // TODO: Is this the correct way to destroy the semaphores? Other way may include closing and then unlinking the semaphore name
+    for (int i = 0; i < config.MAX_QUEUES_IN_SHMEM; i++) {
+        sem_destroy(&semaphores[i]);
+    }
+
+    // Destroy the shared memory region
+    // Unmap the shared memory region from the address space of the calling process
+    int shared_memory_status = munmap(shared_memory_address, config.SHMEM_SIZE);
+    if (shared_memory_status == -1) {
+        printf("Error: Could not unmap the shared memory region from the address space of the calling process\n");
+        return (MF_ERROR);
+    }
+
+    // Close the shared memory region
+    int shared_memory_close_status = close(shared_memory_id);
+    if (shared_memory_close_status == -1) {
+        printf("Error: Could not close the shared memory region\n");
+        return (MF_ERROR);
+    }
+
+    // Remove the shared memory region, unlink the shared memory object
+    int shared_memory_remove_status = shm_unlink(config.SHMEM_NAME);
+    if (shared_memory_remove_status == -1) {
+        printf("Error: Could not remove the shared memory region\n");
+        return (MF_ERROR);
+    }
+
     return (MF_SUCCESS);
 }
 
