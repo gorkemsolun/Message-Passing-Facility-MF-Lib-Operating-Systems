@@ -16,8 +16,7 @@
 
 char* mqname1 = "msgqueue1";
 
-int
-main(int argc, char** argv) {
+int main(int argc, char** argv) {
     int ret, qid;
     char sendbuffer[MAX_DATALEN];
     int n_sent, n_received;

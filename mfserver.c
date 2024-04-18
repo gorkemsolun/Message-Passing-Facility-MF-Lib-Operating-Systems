@@ -30,7 +30,8 @@ int main(int argc, char* argv[]) {
     // register the signal handler function
 
 
-    // TODO - call mf_init() to read the config file
+    // call mf_init() to read the config file
+    // TODO - Test this function
     mf_init(); // will read the config file
 
     while (1)

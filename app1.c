@@ -16,8 +16,7 @@ char* semname2 = "/semaphore2";
 sem_t* sem1, * sem2;
 char* mqname1 = "msgqueue1";
 
-int
-main(int argc, char** argv) {
+int main(int argc, char** argv) {
     int ret, i, qid;
     char sendbuffer[MAX_DATALEN];
     int n_sent, n_received;
