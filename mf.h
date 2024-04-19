@@ -33,7 +33,7 @@
 #define MF_ERROR -1
 // unseccessful completion
 
-#define MF_MQ_HEADER_SIZE 276 // bytes 128+4+4+4+128+4+4
+#define MF_MQ_HEADER_SIZE 284 // bytes 128+4+4+4+128+4+4+4+4
 
 
 int mf_init();

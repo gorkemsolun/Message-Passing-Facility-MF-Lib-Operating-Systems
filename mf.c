@@ -13,6 +13,8 @@
 // Complete test TODOs
 // Create a data structure for message queues, messages, and shared memory region
 // Make dynamic allocation for messages inside a message queue space
+// Implement the semaphores for synchronization
+// Add reference counting for message queues
 
 // LinkedList structure for finding places for the message queues in the shared memory region
 // This structure will be used to find empty slots in the shared memory region
@@ -34,6 +36,7 @@ Hole* create_hole(void* start_address, int size) {
 }
 
 // Insert a hole to the hole list in sorted order
+// TODO: Test the insert_hole function, it may not be working correctly for multiple holes
 void insert_hole(Hole* head, Hole* hole) {
     // Insert the hole in sorted order
     Hole* current = head;
@@ -141,12 +144,14 @@ int mf_init() {
     // - Message queue name (128 bytes) MAX_MQNAMESIZE
     // - Message queue id (4 bytes) Should be between 1 to config.MAX_QUEUES_IN_SHMEM inclusive
     // - Message queue size (4 bytes)
-    // - Number of messages in the queue (4 bytes)
+    // - Number of messages in the queue (4 bytes), message count
     // - Semaphore name (128 bytes) MAXFILENAME
     // - Semaphore ID (4 bytes)
     // - Address difference between the start address of the message queue and the start address of the shared memory region for message queues (4 bytes)
+    // - Address difference between the start address of the next message in the message queue and the start address of the message queue (4 bytes)
+    // - Address difference between the end address of the last message in the message queue and the start address of the message queue (4 bytes)
 
-    shared_memory_address_queues = shared_memory_address_fixed + (sizeof(char) * MAX_MQNAMESIZE + sizeof(int) * 5 + sizeof(char) * MAXFILENAME) * config.MAX_QUEUES_IN_SHMEM;
+    shared_memory_address_queues = shared_memory_address_fixed + (sizeof(char) * MF_MQ_HEADER_SIZE) * config.MAX_QUEUES_IN_SHMEM;
 
     // Initialize the hole list for finding empty slots in the shared memory region
     // First hole will be the whole shared memory region for the message queues
@@ -255,7 +260,7 @@ int mf_create(char* mqname, int mqsize) {
     }
 
     // Start address of the header of the message queue in the fixed shared memory region
-    void* mq_header_address = shared_memory_address_fixed + qid * MF_MQ_HEADER_SIZE;
+    void* mq_header_address = shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE;
 
     // Set the message queue name in the message queue header
     memcpy(mq_header_address, mqname, sizeof(char) * MAX_MQNAMESIZE);
@@ -268,12 +273,12 @@ int mf_create(char* mqname, int mqsize) {
     // Initialize the message count to 0
     char mq_msg_count_bytes[4];
     int_to_bytes_little_endian(0, mq_msg_count_bytes);
-    memcpy(mq_header_address + sizeof(char) * MAX_MQNAMESIZE + sizeof(int), mq_msg_count_bytes, 4);
+    memcpy(mq_header_address + sizeof(char) * MAX_MQNAMESIZE + sizeof(int) * 2, mq_msg_count_bytes, 4);
 
     // Set the message queue size in the message queue header
     char mq_size_bytes[4];
     int_to_bytes_little_endian(mqsize_bytes, mq_size_bytes);
-    memcpy(mq_header_address + sizeof(char) * MAX_MQNAMESIZE + sizeof(int) * 2, mq_size_bytes, 4);
+    memcpy(mq_header_address + sizeof(char) * MAX_MQNAMESIZE + sizeof(int), mq_size_bytes, 4);
 
     // TODO: Create a semaphore for the message queue
     // TODO: Assign a unique semaphore ID to the semaphore
@@ -304,9 +309,19 @@ int mf_create(char* mqname, int mqsize) {
     int mq_start_address_diff = mq_start_address - shared_memory_address_queues;
 
     // Set the address difference in the message queue header
-    char mq_start_address_diff_bytes[4];
-    int_to_bytes_little_endian(mq_start_address_diff, mq_start_address_diff_bytes);
-    memcpy(mq_header_address + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 4, mq_start_address_diff_bytes, 4);
+    char mq_start_address_difference_bytes[4];
+    int_to_bytes_little_endian(mq_start_address_diff, mq_start_address_difference_bytes);
+    memcpy(mq_header_address + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 4, mq_start_address_difference_bytes, 4);
+
+    // Set the address difference between the start address of the next message in the message queue and the start address of the message queue to 0
+    char mq_next_msg_address_difference_bytes[4];
+    int_to_bytes_little_endian(0, mq_next_msg_address_difference_bytes);
+    memcpy(mq_header_address + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 5, mq_next_msg_address_difference_bytes, 4);
+
+    // Set the address difference between the end address of the last message in the message queue and the start address of the message queue to 0
+    char mq_end_msg_address_difference_bytes[4];
+    int_to_bytes_little_endian(0, mq_end_msg_address_difference_bytes);
+    memcpy(mq_header_address + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 6, mq_end_msg_address_difference_bytes, 4);
 
     return (MF_SUCCESS);
 }
@@ -342,14 +357,233 @@ int mf_close(int qid) {
     return(MF_SUCCESS);
 }
 
-
+// This function sends a message to the message queue specified by the message queue ID (qid).
+// TODO: It can block the caller until space is available in the queue.
+// The message, obtained from the memory space pointed to by bufptr, is copied to the message queue buffer in the shared memory of the library.
+// Data length specifies the size of the message in bytes.
 int mf_send(int qid, void* bufptr, int datalen) {
-    printf("mf_send called\n");
+    // Search for the message queue in the fixed shared memory region
+    int qid_found = 0;
+    for (int i = 0; i < config.MAX_QUEUES_IN_SHMEM; i++) {
+        char mq_id_bytes[4];
+        memcpy(mq_id_bytes, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE, 4);
+        int mq_id = bytes_to_int_little_endian(mq_id_bytes);
+        if (mq_id == qid) {
+            qid_found = 1;
+            break;
+        }
+    }
+
+    if (qid_found == 0) {
+        printf("Error: Message queue with the given message queue ID (qid) is not found\n");
+        return (MF_ERROR);
+    }
+
+    // Update the data length to get actual data length
+    datalen = datalen + sizeof(char);
+
+    // Get the start address difference of the message queue in the shared memory region
+    char mq_start_address_difference_bytes[4];
+    memcpy(mq_start_address_difference_bytes, shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 4, 4);
+    int mq_start_address_diff = bytes_to_int_little_endian(mq_start_address_difference_bytes);
+
+    // Calculate the start address of the message queue in the shared memory region
+    void* mq_start_address = shared_memory_address_queues + mq_start_address_diff;
+
+    // Get message queue size
+    char mq_size_bytes[4];
+    memcpy(mq_size_bytes, shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int), 4);
+    int mq_size = bytes_to_int_little_endian(mq_size_bytes);
+
+    printf("mq_size: %d\n", mq_size);
+
+    // Get message count
+    char mq_msg_count_bytes[4];
+    memcpy(mq_msg_count_bytes, shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int) * 2, 4);
+    int mq_msg_count = bytes_to_int_little_endian(mq_msg_count_bytes);
+
+    printf("mq_msg_count: %d\n", mq_msg_count);
+
+    // Get the address difference between the start address of the next message in the message queue and the start address of the message queue
+    char mq_next_msg_address_difference_bytes[4];
+    memcpy(mq_next_msg_address_difference_bytes, shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 5, 4);
+    int mq_next_msg_address_diff = bytes_to_int_little_endian(mq_next_msg_address_difference_bytes);
+
+    // Get the address difference between the end address of the last message in the message queue and the start address of the message queue
+    char mq_end_msg_address_difference_bytes[4];
+    memcpy(mq_end_msg_address_difference_bytes, shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 6, 4);
+    int mq_end_msg_address_diff = bytes_to_int_little_endian(mq_end_msg_address_difference_bytes);
+
+    // The message format in the message queue will be as follows:
+    // - Message length (4 bytes)
+    // - Message data (datalen bytes)
+
+    // Find an empty slot in the message queue
+    // If the message queue is empty, the start address of the message queue will be equal to the end address of the last message in the message queue
+    if (mq_end_msg_address_diff == 0) {
+        // Calculate the start address of the message in the message queue
+        void* mq_msg_start_address = mq_start_address;
+
+        // Calculate the end address of the message in the message queue
+        void* mq_msg_end_address = mq_msg_start_address + sizeof(int) + datalen;
+
+        // Check if the message fits in the message queue
+        if (mq_msg_end_address > mq_start_address + mq_size) {
+            printf("Error: Message does not fit in the message queue\n");
+            return (MF_ERROR);
+        }
+
+        // Copy the message length to the message queue
+        char msg_len_bytes[4];
+        int_to_bytes_little_endian(datalen, msg_len_bytes);
+        memcpy(mq_msg_start_address, msg_len_bytes, 4);
+
+        // Copy the message data to the message queue
+        memcpy(mq_msg_start_address + sizeof(int), bufptr, datalen);
+
+        // Update the message count in the message queue header
+        mq_msg_count++;
+        int_to_bytes_little_endian(mq_msg_count, mq_msg_count_bytes);
+        memcpy(shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int) * 2, mq_msg_count_bytes, 4);
+
+        // Update the address difference between the end address of the last message in the message queue and the start address of the message queue
+        mq_end_msg_address_diff = mq_msg_end_address - mq_start_address;
+        int_to_bytes_little_endian(mq_end_msg_address_diff, mq_end_msg_address_difference_bytes);
+        memcpy(shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 6, mq_end_msg_address_difference_bytes, 4);
+
+    }
+    // If the end address of the last message is bigger than the start address of the next message
+    else if (mq_end_msg_address_diff > mq_next_msg_address_diff) {
+        // Two conditions may occur here
+    }
+    // If the end address of the last message is smaller than the start address of the next message
+    // This means that there is an empty slot between the end address of the last message and the start address of the next message
+    else if (mq_end_msg_address_diff < mq_next_msg_address_diff) {
+
+    }
+    // If the end address of the last message is equal to the start address of the next message
+    // This means that the message queue is full
+    else {
+        // TODO: Block the caller until space is available in the queue
+        // TODO: Use a semaphore for synchronization
+        return (MF_ERROR);
+    }
+
+
     return (MF_SUCCESS);
 }
 
+// This function retrieves a message from the message queue, blocking the caller if no message is available for removal.
+// The messages are removed from the message queue in the order they were added (FIFO).
+// The message is copied to the memory space pointed to by bufptr.
+// After the message is copied, the message is removed from the message queue.
+// The bufsize parameter of this function specifies the size of the application buffer where the incoming message is to be stored.
+// It does not represent the length of the incoming message.
+// If the incoming message is larger than the buffer size, the message is truncated.
+// The bufsize parameter value (i.e., application buffer size) must be larger or equal to MAXDATALEN to ensure sufficient space in the application buffer for any incoming message.
 int mf_recv(int qid, void* bufptr, int bufsize) {
-    printf("mf_recv called\n");
+    // Search for the message queue in the fixed shared memory region
+    int qid_found = 0;
+    for (int i = 0; i < config.MAX_QUEUES_IN_SHMEM; i++) {
+        char mq_id_bytes[4];
+        memcpy(mq_id_bytes, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE, 4);
+        int mq_id = bytes_to_int_little_endian(mq_id_bytes);
+        if (mq_id == qid) {
+            qid_found = 1;
+            break;
+        }
+    }
+
+    if (qid_found == 0) {
+        printf("Error: Message queue with the given message queue ID (qid) is not found\n");
+        return (MF_ERROR);
+    }
+
+    // Get the start address difference of the message queue in the shared memory region
+    char mq_start_address_difference_bytes[4];
+    memcpy(mq_start_address_difference_bytes, shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 4, 4);
+    int mq_start_address_diff = bytes_to_int_little_endian(mq_start_address_difference_bytes);
+
+    // Calculate the start address of the message queue in the shared memory region
+    void* mq_start_address = shared_memory_address_queues + mq_start_address_diff;
+
+    // Get message count
+    char mq_msg_count_bytes[4];
+    memcpy(mq_msg_count_bytes, shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int) * 2, 4);
+    int mq_msg_count = bytes_to_int_little_endian(mq_msg_count_bytes);
+
+    // Get the address difference between the start address of the next message in the message queue and the start address of the message queue
+    char mq_next_msg_address_difference_bytes[4];
+    memcpy(mq_next_msg_address_difference_bytes, shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 5, 4);
+    int mq_next_msg_address_diff = bytes_to_int_little_endian(mq_next_msg_address_difference_bytes);
+
+    // Get the address difference between the end address of the last message in the message queue and the start address of the message queue
+    char mq_end_msg_address_difference_bytes[4];
+    memcpy(mq_end_msg_address_difference_bytes, shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 6, 4);
+    int mq_end_msg_address_diff = bytes_to_int_little_endian(mq_end_msg_address_difference_bytes);
+
+    // The message format in the message queue will be as follows:
+    // - Message length (4 bytes)
+    // - Message data (datalen bytes)
+
+    // If the message queue is empty, block the caller until a message is available
+    if (mq_msg_count == 0) {
+        // TODO: Block the caller until a message is available
+        // TODO: Use a semaphore for synchronization
+    }
+
+    // Calculate the start address of the message in the message queue
+    void* mq_msg_start_address = mq_start_address;
+
+    // Get the message length from the message queue
+    char msg_len_bytes[4];
+    memcpy(msg_len_bytes, mq_msg_start_address, 4);
+    int msg_len = bytes_to_int_little_endian(msg_len_bytes);
+
+    // Copy the message data to the buffer
+    memcpy(bufptr, mq_msg_start_address + sizeof(int), bufsize);
+
+    // Update the message count in the message queue header
+    mq_msg_count--;
+    int_to_bytes_little_endian(mq_msg_count, mq_msg_count_bytes);
+    memcpy(shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int) * 2, mq_msg_count_bytes, 4);
+
+    // Erase the message from the message queue by filling the message with zeros
+    memset(mq_msg_start_address, 0, sizeof(int) + msg_len);
+
+    // Update the next message address difference in the message queue header
+    // If the message queue is empty, set the next and last message address difference to 0
+    if (mq_msg_count == 0) {
+        int_to_bytes_little_endian(0, mq_next_msg_address_difference_bytes);
+        memcpy(shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 5, mq_next_msg_address_difference_bytes, 4);
+
+        int_to_bytes_little_endian(0, mq_end_msg_address_difference_bytes);
+        memcpy(shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 6, mq_end_msg_address_difference_bytes, 4);
+    }
+    // Calculate the next message address difference in the message queue
+    else {
+        // Calculate the start address of the next message in the message queue
+        void* mq_next_msg_start_address = mq_msg_start_address + sizeof(int) + msg_len;
+
+        // Check if the 4 bytes after the next message start address to be sure that a message exists there
+        char next_msg_len_bytes[4];
+        memcpy(next_msg_len_bytes, mq_next_msg_start_address, 4);
+        int next_msg_len = bytes_to_int_little_endian(next_msg_len_bytes);
+
+        // If the next message length is 0, this means that there is no message, so set the next message address difference to 0,
+        // as the next message is at the start of the message queue
+        if (next_msg_len == 0) {
+            int_to_bytes_little_endian(0, mq_next_msg_address_difference_bytes);
+            memcpy(shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 5, mq_next_msg_address_difference_bytes, 4);
+        }
+        // If the next message length is not 0, this means that there is a message, so calculate the next message address difference
+        else {
+            int next_msg_address_diff = mq_next_msg_start_address - mq_start_address;
+            int_to_bytes_little_endian(next_msg_address_diff, mq_next_msg_address_difference_bytes);
+            memcpy(shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 5, mq_next_msg_address_difference_bytes, 4);
+        }
+    }
+
     return (MF_SUCCESS);
 }
 
@@ -418,13 +652,23 @@ void print_MFConfig(
     printf("SHMEM_NAME: %s\n", config->SHMEM_NAME);
 }
 
-int bytes_to_int_little_endian(char* bytes) {
-    return (int)(bytes[0]) |
-        (int)(bytes[1]) << 8 |
-        (int)(bytes[2]) << 16 |
-        (int)(bytes[3]) << 24;
+// Check if the value is negative, if it is, convert it to a positive value
+int char_overflow_check(int value) {
+    if (value < 0) {
+        value += 256;
+    }
+    return value;
 }
 
+// Convert 4 bytes to an integer in little-endian order
+int bytes_to_int_little_endian(char* bytes) {
+    return (int)(char_overflow_check(bytes[0])) |
+        (int)(char_overflow_check(bytes[1])) << 8 |
+        (int)(char_overflow_check(bytes[2])) << 16 |
+        (int)(char_overflow_check(bytes[3])) << 24;
+}
+
+// Convert an integer to 4 bytes in little-endian order
 void int_to_bytes_little_endian(int val, char* bytes) {
     bytes[0] = (char)(val & 0xFF);
     bytes[1] = (char)((val >> 8) & 0xFF);
@@ -439,13 +683,29 @@ int main() {
     int g = mf_open("mq1");
     printf("qid: %d\n", g);
 
+    mf_send(g, "Hello", 5);
+
+    char buf[5];
+    mf_recv(g, buf, 5);
+
+    printf("Received: %s\n", buf);
+
+    mf_send(g, "kalem", 5);
+    mf_recv(g, buf, 5);
+
+    printf("Received: %s\n", buf);
+
     mf_create("mq2", 32);
     int f = mf_open("mq2");
     printf("qid: %d\n", f);
 
+    mf_send(f, "World", 5);
+
     mf_create("mq3", 16);
     int h = mf_open("mq3");
     printf("qid: %d\n", h);
+
+    mf_send(h, "Test", 4);
 
 
 
