@@ -13,21 +13,13 @@
 
 // Complete test TODOs
 
-// Create a data structure for message queues, messages, and shared memory region
-// Make dynamic allocation for messages inside a message queue space
-// Update for above 2, Gorkem has done these need to check
-
 // Reading the configuration file should be done in connect function instead of init function
-
-// Implement the semaphores for synchronization
 
 // Semaphores and maximum number of messages in a queue problem, what happens if the maximum number of messages can't be reached or overflows
 
 // Shared memory mapping should be done in connect function instead of init function
 
 // Space allocation should be done by multiples of 4
-
-
 
 // LinkedList structure for finding places for the message queues in the shared memory region
 // This structure will be used to find empty slots in the shared memory region
@@ -49,8 +41,6 @@ Hole* create_hole(void* start_address, int size) {
 }
 
 // Insert a hole to the hole list in sorted order
-// TODO: Test the insert_hole function, it may not be working correctly for multiple holes
-// TODO UPDATE: Gorkem has tested the insert_hole function it looks like it is working correctly, need to test again
 void insert_hole(Hole** head, Hole* hole) {
     // Insert the hole in sorted order
     if (*head == NULL || (*head)->start_address >= hole->start_address) {
@@ -67,8 +57,6 @@ void insert_hole(Hole** head, Hole* hole) {
 }
 
 // Merge the holes in the hole list if they are contiguous in the shared memory region
-// TODO: Test the merge_holes function
-// TODO UPDATE: Gorkem has tested the merge_holes function, it looks like it is working correctly, need to test again
 void merge_holes(Hole** head) {
     Hole* current = *head;
     while (current != NULL && current->next != NULL) {
@@ -84,7 +72,6 @@ void merge_holes(Hole** head) {
 }
 
 // Cleanup the hole list
-// TODO: Test the free_holes function, we may need to check memory leaks
 void free_holes(Hole** head) {
     Hole* current = *head;
     while (current != NULL) {
@@ -134,16 +121,9 @@ void int_to_bytes_little_endian(int val, char* bytes);
 // A fixed portion of your shared memory can be allocated for storing management information and structures.
 // The fixed portion may include the number of message queues, the size of each message queue, the number of messages in each queue,
 // names of the semaphores, and configuration parameters.
-// TODO: Test the created shared memory region and the creation of the shared memory region
-// TODO: Create a semaphore to protect the shared memory region and the message queues, I don't know if it is necessary, not implemented yet
-// TODO UPDATE: I have added the semaphore array for each message queue, initialize the array after reading the configuration file, TEST NEEDED
-// TODO UPDATE 2: Removed the semaphore array, it will be implemented later, not necessary for now
 // Reads the configuration file
-// TODO: Test the read_config_file function
-// TODO Update: Gorkem tested it, need to test again
 int mf_init() {
     // Read the configuration file
-    // TODO: Test read_config_file function, Gorkem tested it
     int conf_status = read_config_file(&config);
     if (conf_status == MF_ERROR) {
         printf("Error: Could not read the configuration file\n");
@@ -204,9 +184,7 @@ int mf_init() {
 // Perform any necessary cleanup and deallocation operations before the program exits
 // including removing the shared memory and all the synchronizatiSon objects to ensure a clean system state
 // Destroys the shared memory region
-// TODO: Test destroying the shared memory region
 // Destroys the semaphores
-// TODO: Test destroying the semaphores
 int mf_destroy() {
     // Remove the synchronization objects
 
@@ -236,6 +214,9 @@ int mf_destroy() {
     free_holes(&holes);
 
     // TODO: Free global variables, check if there are any global variables that need to be freeds
+
+    // Destroy the semaphores
+
 
 
     return (MF_SUCCESS);
