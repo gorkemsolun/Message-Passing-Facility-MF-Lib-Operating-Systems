@@ -438,9 +438,40 @@ int mf_open(char* mqname) {
     return (MF_ERROR);
 }
 
-// TODO: Remove the semaphore for the message queue, update the semaphore and semaphore_qids arrays
+// This function closes the message queue specified by the message queue ID (qid).
+// It decrements the reference count of the message queue.
+// Assumed that the message queue will be closed by the process that opened it.
+// Assumed that the handling of the message queue will be done by the process that opened it.
 int mf_close(int qid) {
-    return(MF_SUCCESS);
+    // Search for the message queue header in the fixed shared memory region  
+    // If the message queue is found, decrement the reference count of the message queue
+    int qid_found = 0;
+    for (int i = 0; i < config.MAX_QUEUES_IN_SHMEM; i++) {
+        // Get the message queue ID
+        char mq_id_bytes[4];
+        memcpy(mq_id_bytes, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE, 4);
+        int mq_id = bytes_to_int_little_endian(mq_id_bytes);
+
+        // Compare the message queue ID with the given message queue ID
+        if (mq_id == qid) {
+            qid_found = 1;
+
+            // Get the reference count of the message queue
+            char mq_ref_count_bytes[4];
+            memcpy(mq_ref_count_bytes, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 7, 4);
+            int mq_ref_count = bytes_to_int_little_endian(mq_ref_count_bytes);
+
+            // Decrement the reference count of the message queue
+            mq_ref_count--;
+            int_to_bytes_little_endian(mq_ref_count, mq_ref_count_bytes);
+            memcpy(shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 7, mq_ref_count_bytes, 4);
+
+            return(MF_SUCCESS);
+        }
+    }
+
+    // If the message queue is not found, return an error
+    return (MF_ERROR);
 }
 
 // This function sends a message to the message queue specified by the message queue ID (qid).
@@ -448,7 +479,7 @@ int mf_close(int qid) {
 // The message, obtained from the memory space pointed to by bufptr, is copied to the message queue buffer in the shared memory of the library.
 // Data length specifies the size of the message in bytes.
 int mf_send(int qid, void* bufptr, int datalen) {
-    // Search for the message queue in the fixed shared memory region
+    // Search for the message queue header in the fixed shared memory region
     int qid_found = 0;
     for (int i = 0; i < config.MAX_QUEUES_IN_SHMEM; i++) {
         char mq_id_bytes[4];
