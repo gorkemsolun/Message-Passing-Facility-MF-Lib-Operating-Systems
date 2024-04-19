@@ -679,6 +679,8 @@ void int_to_bytes_little_endian(int val, char* bytes) {
 int main() {
     mf_init();
 
+
+
     mf_create("mq1", 64);
     int g = mf_open("mq1");
     printf("qid: %d\n", g);
@@ -695,11 +697,17 @@ int main() {
 
     printf("Received: %s\n", buf);
 
+
+
     mf_create("mq2", 32);
     int f = mf_open("mq2");
     printf("qid: %d\n", f);
 
     mf_send(f, "World", 5);
+
+    mf_recv(f, buf, 5);
+    printf("Received: %s\n", buf);
+
 
     mf_create("mq3", 16);
     int h = mf_open("mq3");
