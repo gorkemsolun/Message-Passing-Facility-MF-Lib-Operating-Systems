@@ -96,7 +96,7 @@ Hole* holes; // Hole list for finding empty slots in the shared memory region
 char empty_sem_additon[MAXFILENAME] = "empty"; // Semaphore name addition for no message in the message queue
 char full_sem_additon[MAXFILENAME] = "full"; // Semaphore name addition for insufficient space in the message queue
 char access_mutex_sem_additon[MAXFILENAME] = "access_mutex"; // Semaphore name addition for access mutex in the message queue
-char sem_name[MAXFILENAME] = "/semaphore"; // Base semaphore name
+char base_sem_name[MAXFILENAME] = "/semaphore"; // Base semaphore name
 
 
 // Helper function prototypes
@@ -221,8 +221,41 @@ int mf_destroy() {
 // This function will be called by each application (process) intending to utilize the MF library for message-based communication.
 // It will perform the required initialization for the process.
 int mf_connect() {
+    // Read the configuration file
+    int conf_status = read_config_file(&config);
+    if (conf_status == MF_ERROR) {
+        printf("Error: Could not read the configuration file\n");
+        return (MF_ERROR);
+    }
 
-    read_config_file(&config);
+    // Create a shared memory region or open an existing shared memory region
+    shared_memory_id = shm_open(config.SHMEM_NAME, O_CREAT | O_RDWR, 0666);
+    if (shared_memory_id == -1) {
+        printf("Error: Could not create or open the shared memory region\n");
+        return (MF_ERROR);
+    }
+
+    // Set the size of the shared memory region
+    int shared_memory_size = config.SHMEM_SIZE * 1024 * sizeof(char);
+    int shared_memory_status = ftruncate(shared_memory_id, shared_memory_size);
+    if (shared_memory_status == -1) {
+        printf("Error: Could not set the size of the shared memory region\n");
+        close(shared_memory_id);
+        shm_unlink(config.SHMEM_NAME);
+        return (MF_ERROR);
+    }
+
+    // Map the shared memory region to the address space of the calling process
+    shared_memory_address_fixed = mmap(NULL, shared_memory_size, PROT_READ | PROT_WRITE, MAP_SHARED, shared_memory_id, 0);
+    if (shared_memory_address_fixed == MAP_FAILED) {
+        printf("Error: Could not map the shared memory region to the address space of the calling process\n");
+        close(shared_memory_id);
+        shm_unlink(config.SHMEM_NAME);
+        return (MF_ERROR);
+    }
+
+    // Calculate the shared memory queue region
+    shared_memory_address_queues = shared_memory_address_fixed + (sizeof(char) * MF_MQ_HEADER_SIZE) * config.MAX_QUEUES_IN_SHMEM;
 
     return (MF_SUCCESS);
 }
@@ -492,7 +525,8 @@ int mf_close(int qid) {
 int mf_send(int qid, void* bufptr, int datalen) {
     // Create a semaphore base name for the message queue
     // The semaphore base name will be "semaphore" + qid
-    char sem_name[MAXFILENAME] = sem_name;
+    char sem_name[MAXFILENAME];
+    strcpy(sem_name, base_sem_name);
     // Add the message queue id to the base semaphore name
     char qid_str[4];
     sprintf(qid_str, "%d", qid);
@@ -519,11 +553,6 @@ int mf_send(int qid, void* bufptr, int datalen) {
     sem_t* empty_sem = sem_open(empty_sem_name, O_CREAT, 0666, 0);
     sem_t* full_sem = sem_open(full_sem_name, O_CREAT, 0666, 0);
     sem_t* access_mutex_sem = sem_open(access_mutex_sem_name, O_CREAT, 0666, 1);
-
-    printf("Empty semaphore name: %s\n", empty_sem_name);
-    printf("Full semaphore name: %s\n", full_sem_name);
-    printf("Access mutex semaphore name: %s\n", access_mutex_sem_name);
-
 
     // Check variable if the message queue is full
     int is_sent = 0;
@@ -558,10 +587,6 @@ int mf_send(int qid, void* bufptr, int datalen) {
 
         // Update the data length to get actual data length
         datalen = datalen * sizeof(char);
-
-
-
-
 
         // Get message count
         char mq_msg_count_bytes[4];
@@ -798,7 +823,8 @@ int mf_send(int qid, void* bufptr, int datalen) {
 int mf_recv(int qid, void* bufptr, int bufsize) {
     // Create a semaphore base name for the message queue
     // The semaphore base name will be "semaphore" + qid
-    char sem_name[MAXFILENAME] = sem_name;
+    char sem_name[MAXFILENAME];
+    strcpy(sem_name, base_sem_name);
     // Add the message queue id to the base semaphore name
     char qid_str[4];
     sprintf(qid_str, "%d", qid);
@@ -825,10 +851,6 @@ int mf_recv(int qid, void* bufptr, int bufsize) {
     sem_t* empty_sem = sem_open(empty_sem_name, O_CREAT, 0666, 0);
     sem_t* full_sem = sem_open(full_sem_name, O_CREAT, 0666, 0);
     sem_t* access_mutex_sem = sem_open(access_mutex_sem_name, O_CREAT, 0666, 1);
-
-    printf("Empty semaphore name: %s\n", empty_sem_name);
-    printf("Full semaphore name: %s\n", full_sem_name);
-    printf("Access mutex semaphore name: %s\n", access_mutex_sem_name);
 
     int is_received = 0;
 
@@ -891,7 +913,7 @@ int mf_recv(int qid, void* bufptr, int bufsize) {
         // Get the address difference between the end address of the last message in the message queue and the start address of the message queue
         char mq_end_msg_address_difference_bytes[4];
         memcpy(mq_end_msg_address_difference_bytes, shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int) * 5, 4);
-        int mq_end_msg_address_diff = bytes_to_int_little_endian(mq_end_msg_address_difference_bytes);
+        // int mq_end_msg_address_diff = bytes_to_int_little_endian(mq_end_msg_address_difference_bytes);
 
         // The message format in the message queue will be as follows:
         // - Message length (4 bytes)
