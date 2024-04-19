@@ -36,12 +36,6 @@ app2.o: app2.c  mf.c mf.h
 app2: app2.o libmf.a mf.o
 	gcc $(CFLAGS) -o $@ app2.o $(MF_LIB)
 	
-app3.o: app3.c  mf.c mf.h
-	gcc -c $(CFLAGS)  -o $@ app3.c
-
-app3: app3.o libmf.a mf.o
-	gcc $(CFLAGS) -o $@ app3.o $(MF_LIB)
-
 producer.o: producer.c  mf.c mf.h
 	gcc -c $(CFLAGS)  -o $@ producer.c
 
