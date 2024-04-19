@@ -150,6 +150,7 @@ int mf_init() {
     // - Address difference between the start address of the message queue and the start address of the shared memory region for message queues (4 bytes)
     // - Address difference between the start address of the next message in the message queue and the start address of the message queue (4 bytes)
     // - Address difference between the end address of the last message in the message queue and the start address of the message queue (4 bytes)
+    // - Reference count (4 bytes)
 
     shared_memory_address_queues = shared_memory_address_fixed + (sizeof(char) * MF_MQ_HEADER_SIZE) * config.MAX_QUEUES_IN_SHMEM;
 
@@ -194,7 +195,8 @@ int mf_destroy() {
         return (MF_ERROR);
     }
 
-    // Free global variables
+    // TODO: Free the hole list
+    // TODO: Free global variables
 
     return (MF_SUCCESS);
 }
@@ -323,10 +325,21 @@ int mf_create(char* mqname, int mqsize) {
     int_to_bytes_little_endian(0, mq_end_msg_address_difference_bytes);
     memcpy(mq_header_address + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 6, mq_end_msg_address_difference_bytes, 4);
 
+    // Set the reference count to 0
+    char mq_ref_count_bytes[4];
+    int_to_bytes_little_endian(0, mq_ref_count_bytes);
+    memcpy(mq_header_address + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 7, mq_ref_count_bytes, 4);
+
     return (MF_SUCCESS);
 }
 
+// This function removes the message queue specified by the message queue name.
+// It deallocates the space in the shared memory used by the message queue.
+// 
 int mf_remove(char* mqname) {
+
+
+
     return (MF_SUCCESS);
 }
 
@@ -345,10 +358,22 @@ int mf_open(char* mqname) {
             char mq_id_bytes[4];
             memcpy(mq_id_bytes, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE, 4);
             int qid = bytes_to_int_little_endian(mq_id_bytes);
+
+            // Get the reference count of the message queue
+            char mq_ref_count_bytes[4];
+            memcpy(mq_ref_count_bytes, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 7, 4);
+            int mq_ref_count = bytes_to_int_little_endian(mq_ref_count_bytes);
+
+            // Increment the reference count of the message queue   
+            mq_ref_count++;
+            int_to_bytes_little_endian(mq_ref_count, mq_ref_count_bytes);
+            memcpy(shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 7, mq_ref_count_bytes, 4);
+
             return qid;
         }
     }
 
+    // If the message queue is not found, return an error
     return (MF_ERROR);
 }
 
@@ -796,7 +821,7 @@ int main() {
 
     mf_send(g, "Hello", 5);
     mf_send(g, "World", 5);
-    
+
     mf_recv(g, buf, 5);
     printf("Received: %s\n", buf);
     mf_recv(g, buf, 5);
