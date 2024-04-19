@@ -37,24 +37,29 @@ Hole* create_hole(void* start_address, int size) {
 
 // Insert a hole to the hole list in sorted order
 // TODO: Test the insert_hole function, it may not be working correctly for multiple holes
-void insert_hole(Hole* head, Hole* hole) {
+void insert_hole(Hole** head, Hole* hole) {
     // Insert the hole in sorted order
-    Hole* current = head;
-    while (current->next != NULL && current->next->start_address < hole->start_address) {
-        current = current->next;
+    if (*head == NULL || (*head)->start_address >= hole->start_address) {
+        hole->next = *head;
+        *head = hole;
+    } else {
+        Hole* current = *head;
+        while (current->next != NULL && current->next->start_address < hole->start_address) {
+            current = current->next;
+        }
+        hole->next = current->next;
+        current->next = hole;
     }
-    hole->next = current->next;
-    current->next = hole;
 }
 
 // Merge the holes in the hole list if they are contiguous in the shared memory region
-void merge_holes(Hole* head) {
-    Hole* current = head;
-    while (current->next != NULL) {
+void merge_holes(Hole** head) {
+    Hole* current = *head;
+    while (current != NULL && current->next != NULL) {
         if (current->start_address + current->size == current->next->start_address) {
             current->size += current->next->size;
             Hole* temp = current->next;
-            current->next = current->next->next;
+            current->next = temp->next;
             free(temp);
         } else {
             current = current->next;
@@ -213,6 +218,8 @@ int mf_connect() {
 }
 
 int mf_disconnect() {
+
+
     return (MF_SUCCESS);
 }
 
@@ -236,6 +243,7 @@ int mf_create(char* mqname, int mqsize) {
         return (MF_ERROR);
     }
 
+    // Calculate the message queue size in bytes
     int mqsize_bytes = mqsize * 1024 * sizeof(char);
 
     // Assign a unique ID to the message queue, search through fixed shared memory region for an empty slot by checking the message queue ids
@@ -335,12 +343,65 @@ int mf_create(char* mqname, int mqsize) {
 
 // This function removes the message queue specified by the message queue name.
 // It deallocates the space in the shared memory used by the message queue.
-// 
 int mf_remove(char* mqname) {
+    // Search for the message queue header in the fixed shared memory region
+    // If the message queue is found, deallocate the space in the shared memory used by the message queue
+    // Search through the message queue names in the fixed shared memory region
+    for (int i = 0; i < config.MAX_QUEUES_IN_SHMEM; i++) {
+        // Get the reference count of the message queue
+        char mq_ref_count_bytes[4];
+        memcpy(mq_ref_count_bytes, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 7, 4);
+        int mq_ref_count = bytes_to_int_little_endian(mq_ref_count_bytes);
 
+        // Check the reference count of the message queue
+        // If the reference count is greater than 0, do not deallocate the space in the shared memory used by the message queue
+        // TODO: First implement the reference counting for message queues, then uncomment the following lines
+        /* if (mq_ref_count > 0) {
+            printf("Error: Message queue is still in use\n");
+            return (MF_ERROR);
+        } */
 
+        // Get the message queue name
+        char mq_name[MAX_MQNAMESIZE];
+        memcpy(mq_name, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE, MAX_MQNAMESIZE);
 
-    return (MF_SUCCESS);
+        // Compare the message queue name with the given message queue name
+        // If the message queue is found, deallocate the space in the shared memory used by the message queue
+        if (strcmp(mq_name, mqname) == 0) {
+            // Get the message queue size
+            char mq_size_bytes[4];
+            memcpy(mq_size_bytes, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int), 4);
+            int mq_size = bytes_to_int_little_endian(mq_size_bytes);
+
+            // Get the address difference between the start address of the message queue and the start address of the shared memory region for message queues
+            char mq_start_address_difference_bytes[4];
+            memcpy(mq_start_address_difference_bytes, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 4, 4);
+            int mq_start_address_diff = bytes_to_int_little_endian(mq_start_address_difference_bytes);
+
+            // Calculate the start address of the message queue in the shared memory region
+            void* mq_start_address = shared_memory_address_queues + mq_start_address_diff;
+
+            // Update the hole list with the deallocated space
+            insert_hole(&holes, create_hole(mq_start_address, mq_size));
+
+            // Update the hole list by merging the holes if they are contiguous
+            merge_holes(&holes);
+
+            // Update the message queue count
+            msg_queue_count--;
+
+            // Clear the message queue header in the fixed shared memory region by filling it with zeros
+            memset(shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE, 0, MF_MQ_HEADER_SIZE);
+
+            // Clear the message queue in the shared memory region by filling it with zeros
+            memset(mq_start_address, 0, mq_size);
+
+            return (MF_SUCCESS);
+        }
+    }
+
+    // If the message queue is not found, return an error
+    return (MF_ERROR);
 }
 
 // This function opens a message queue for sending or receiving messages.
@@ -839,6 +900,13 @@ int main() {
 
     mf_recv(g, buf, 5);
     printf("Received: %s\n", buf);
+
+
+    mf_remove("mq1");
+    mf_remove("mq2");
+
+    mf_create("mq2", 32);
+    mf_remove("mq2");
 
 
 
