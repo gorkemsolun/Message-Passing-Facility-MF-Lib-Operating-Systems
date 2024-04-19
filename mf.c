@@ -837,9 +837,45 @@ int mf_recv(int qid, void* bufptr, int bufsize) {
 
     return (MF_SUCCESS);
 }
-
+// prints the status of the current shared memory and its message queues.
 int mf_print() {
-    return (MF_SUCCESS);
+    //mf_init() not called yet.
+    if(holes != NULL){
+        Hole *head = holes;
+        char *start;
+        int k = 1;
+        if(*((char*)shared_memory_address_fixed) == *((char*)(head->start_address))) 
+            start = "Hole";
+        else { 
+            start = "MQ";   
+        }
+        do {
+            if(head->next != NULL) {
+                if(start == "Hole") { 
+                    printf("%s->", start);
+                    start = "MQ";
+                }
+                else {
+                    printf("%s%d->", start, k++);
+                    start = "Hole"; 
+                }
+            }
+            else {
+                if(start == "Hole") { 
+                    printf("%s", start);
+                    start = "MQ";
+                }
+                else {
+                    printf("%s%d", start, k++);
+                    start = "Hole"; 
+                }
+            }
+            head = head->next;
+        } while (head != NULL);
+        printf("\n");
+        return (MF_SUCCESS);                                    
+    }
+    return (MF_ERROR);
 }
 
 // End of the library functions
@@ -933,11 +969,12 @@ int main() {
     mf_init();
 
 
+    mf_print();
 
     mf_create("mq1", 64);
     int g = mf_open("mq1");
     printf("qid: %d\n", g);
-
+    mf_print();
     mf_send(g, "Hello", 5);
     mf_send(g, "World", 5);
 
@@ -953,7 +990,7 @@ int main() {
 
     mf_recv(g, buf, 5);
     printf("Received: %s\n", buf);
-
+    
     mf_send(g, "kalem", 5);
 
     mf_recv(g, buf, 5);
@@ -975,6 +1012,7 @@ int main() {
     mf_send(f, "World", 5);
 
     mf_recv(f, buf, 5);
+    mf_print();
     printf("Received: %s\n", buf);
 
 
@@ -983,11 +1021,10 @@ int main() {
     mf_create("mq3", 16);
     int h = mf_open("mq3");
     printf("qid: %d\n", h);
-
+    mf_print();
     mf_send(h, "Test", 4);
 
-
-
+    
 
 
 
