@@ -28,17 +28,24 @@
 #define MAX_MQNAMESIZE 128
 // max message queue name size
 
+#define MF_SUCCESS 0
+// successful completion
+#define MF_ERROR -1
+// unseccessful completion
+
+#define MF_MQ_HEADER_SIZE 284 // bytes 128+4+4+4+128+4+4+4+4
+
 
 int mf_init();
 int mf_destroy();
 int mf_connect();
 int mf_disconnect();
-int mf_create(char *mqname, int mqsize);
-int mf_remove(char *mqname);
-int mf_open(char *mqname);
+int mf_create(char* mqname, int mqsize);
+int mf_remove(char* mqname);
+int mf_open(char* mqname);
 int mf_close(int qid);
-int mf_send (int qid, void *bufptr, int datalen);
-int mf_recv (int qid, void *bufptr, int bufsize);
+int mf_send(int qid, void* bufptr, int datalen);
+int mf_recv(int qid, void* bufptr, int bufsize);
 int mf_print();
 
 #endif
