@@ -47,6 +47,8 @@ void test_messageflow_2p1mq() {
     int receivedcount = 0;
     int i;
 
+    mf_init(); // not in original code
+
     mf_connect();
     mf_create("mq1", 16); //  create mq;  size in KB
 
