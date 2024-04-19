@@ -17,6 +17,8 @@
 // Make dynamic allocation for messages inside a message queue space
 // Update for above 2, Gorkem has done these need to check
 
+// Reading the configuration file should be done in connect function instead of init function
+
 // Implement the semaphores for synchronization
 
 
@@ -227,7 +229,7 @@ int mf_destroy() {
 
     // Free the hole list
     free_holes(&holes);
-    
+
     // TODO: Free global variables, check if there are any global variables that need to be freeds
 
 
@@ -237,6 +239,7 @@ int mf_destroy() {
 // Applications linked with the MF library begin by calling the mf_connect() function, initializing the library for their use.
 // This function will be called by each application (process) intending to utilize the MF library for message-based communication.
 // It will perform the required initialization for the process.
+// TODO: move reading the configuration file to mf_connect() function from mf_init() function
 // TODO: Implement the mf_connect() function
 int mf_connect() {
 
@@ -244,6 +247,9 @@ int mf_connect() {
     return (MF_SUCCESS);
 }
 
+// This function will be invoked by an application (process)that no longer requires the messaging library.
+// The library will remove this process from the list of active processes utilizing the library.
+// TODO: Implement the mf_disconnect() function 
 int mf_disconnect() {
 
 
@@ -835,7 +841,8 @@ int mf_recv(int qid, void* bufptr, int bufsize) {
         }
     }
 
-    return (MF_SUCCESS);
+    // Return the actual message length
+    return bufsize;
 }
 
 int mf_print() {
