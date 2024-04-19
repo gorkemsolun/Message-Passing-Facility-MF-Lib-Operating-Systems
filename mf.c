@@ -35,6 +35,7 @@ Hole* create_hole(void* start_address, int size) {
 
 // Insert a hole to the hole list in sorted order
 void insert_hole(Hole* head, Hole* hole) {
+    // Insert the hole in sorted order
     Hole* current = head;
     while (current->next != NULL && current->next->start_address < hole->start_address) {
         current = current->next;
@@ -114,7 +115,7 @@ int mf_init() {
     }
 
     // Set the size of the shared memory region
-    int shared_memory_size = config.SHMEM_SIZE;
+    int shared_memory_size = config.SHMEM_SIZE * 1024 * sizeof(char);
     int shared_memory_status = ftruncate(shared_memory_id, shared_memory_size);
     if (shared_memory_status == -1) {
         printf("Error: Could not set the size of the shared memory region\n");
@@ -149,8 +150,7 @@ int mf_init() {
 
     // Initialize the hole list for finding empty slots in the shared memory region
     // First hole will be the whole shared memory region for the message queues
-    Hole* head = create_hole(shared_memory_address_queues, shared_memory_size - (sizeof(char) * MF_MQ_HEADER_SIZE) * config.MAX_QUEUES_IN_SHMEM);
-    insert_hole(holes, head);
+    holes = create_hole(shared_memory_address_queues, shared_memory_size - (sizeof(char) * MF_MQ_HEADER_SIZE) * config.MAX_QUEUES_IN_SHMEM);
 
     return (MF_SUCCESS);
 }
@@ -236,7 +236,7 @@ int mf_create(char* mqname, int mqsize) {
     // The message queue id should be unique, if a message queue with the same id exists, increment the id
     int qid = 1;
     while (qid < config.MAX_QUEUES_IN_SHMEM) {
-        bool qid_found = 0;
+        int qid_found = 0;
         for (int i = 0; i < config.MAX_QUEUES_IN_SHMEM; i++) {
             char mq_id_bytes[4];
             memcpy(mq_id_bytes, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE, 4);
@@ -315,9 +315,26 @@ int mf_remove(char* mqname) {
     return (MF_SUCCESS);
 }
 
-
+// This function opens a message queue for sending or receiving messages.
+// If successful, it returns a message queue ID (qid) that will be used in subsequent calls to mf_send() and mf_recv().
 int mf_open(char* mqname) {
-    return (MF_SUCCESS);
+    // Search for the message queue in the fixed shared memory region
+    // If the message queue is found, return the message queue ID (qid)
+    // Search through the message queue names in the fixed shared memory region
+    for (int i = 0; i < config.MAX_QUEUES_IN_SHMEM; i++) {
+        char mq_name[MAX_MQNAMESIZE];
+        memcpy(mq_name, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE, MAX_MQNAMESIZE);
+        // Compare the message queue name with the given message queue name
+        // If the message queue is found, return the message queue ID (qid)
+        if (strcmp(mq_name, mqname) == 0) {
+            char mq_id_bytes[4];
+            memcpy(mq_id_bytes, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE, 4);
+            int qid = bytes_to_int_little_endian(mq_id_bytes);
+            return qid;
+        }
+    }
+
+    return (MF_ERROR);
 }
 
 // TODO: Remove the semaphore for the message queue, update the semaphore and semaphore_qids arrays
@@ -417,6 +434,27 @@ void int_to_bytes_little_endian(int val, char* bytes) {
 
 int main() {
     mf_init();
+
+    mf_create("mq1", 64);
+    int g = mf_open("mq1");
+    printf("qid: %d\n", g);
+
+    mf_create("mq2", 32);
+    int f = mf_open("mq2");
+    printf("qid: %d\n", f);
+
+    mf_create("mq3", 16);
+    int h = mf_open("mq3");
+    printf("qid: %d\n", h);
+
+
+
+
+
+
+
+
+
     mf_destroy();
     return 0;
 }
