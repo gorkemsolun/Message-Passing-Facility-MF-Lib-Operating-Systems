@@ -21,6 +21,8 @@ void sigint_handler(int signum) {
     exit(0);
 }
 
+
+// TODO: Control if the start of the program is correct as described in the project description
 int main(int argc, char* argv[]) {
 
     // crtl - c

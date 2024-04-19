@@ -12,8 +12,8 @@
 // min and max message size (data length)
 
 // min and max queue size
-#define MIN_MQSIZE  16 // KB 
-#define MAX_MQSIZE  128 // KB
+#define MIN_MQSIZE  16 // KB // says MB in the project description // assumed to be KB
+#define MAX_MQSIZE  128 // KB  // says MB in the project description // assumed to be KB
 // MQSIZE should be a multiple of 4KB
 // 1 KB is 2^12 bytes = 1024 bytes
 
@@ -33,7 +33,8 @@
 #define MF_ERROR -1
 // unseccessful completion
 
-#define MF_MQ_HEADER_SIZE 284 // bytes 128+4+4+4+128+4+4+4+4
+// bytes 128+4+4+4+128+4+4+4+4, 284 bytes total, description of the header of the message queue lay in the fixed shared memory
+#define MF_MQ_HEADER_SIZE 284
 
 
 int mf_init();
