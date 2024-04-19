@@ -10,11 +10,17 @@
 #include "mf.h"
 
 // GENERAL TODOS
+
 // Complete test TODOs
+
 // Create a data structure for message queues, messages, and shared memory region
 // Make dynamic allocation for messages inside a message queue space
+// Update for above 2, Gorkem has done these need to check
+
 // Implement the semaphores for synchronization
-// Add reference counting for message queues
+
+
+
 
 // LinkedList structure for finding places for the message queues in the shared memory region
 // This structure will be used to find empty slots in the shared memory region
@@ -37,6 +43,7 @@ Hole* create_hole(void* start_address, int size) {
 
 // Insert a hole to the hole list in sorted order
 // TODO: Test the insert_hole function, it may not be working correctly for multiple holes
+// TODO UPDATE: Gorkem has tested the insert_hole function it looks like it is working correctly, need to test again
 void insert_hole(Hole** head, Hole* hole) {
     // Insert the hole in sorted order
     if (*head == NULL || (*head)->start_address >= hole->start_address) {
@@ -53,6 +60,8 @@ void insert_hole(Hole** head, Hole* hole) {
 }
 
 // Merge the holes in the hole list if they are contiguous in the shared memory region
+// TODO: Test the merge_holes function
+// TODO UPDATE: Gorkem has tested the merge_holes function, it looks like it is working correctly, need to test again
 void merge_holes(Hole** head) {
     Hole* current = *head;
     while (current != NULL && current->next != NULL) {
@@ -68,6 +77,7 @@ void merge_holes(Hole** head) {
 }
 
 // Cleanup the hole list
+// TODO: Test the free_holes function, we may need to check memory leaks
 void free_holes(Hole** head) {
     Hole* current = *head;
     while (current != NULL) {
@@ -78,6 +88,7 @@ void free_holes(Hole** head) {
     *head = NULL;
 }
 
+// Configuration structure for the MF library
 struct MFConfig {
     int SHMEM_SIZE;
     int MAX_MSGS_IN_QUEUE;
@@ -100,7 +111,9 @@ void print_MFConfig(struct MFConfig* config);
 int bytes_to_int_little_endian(char* bytes);
 void int_to_bytes_little_endian(int val, char* bytes);
 
+
 // Start of the library functions
+
 
 // Creates a shared memory region where the message queues will be stored and initialize
 // Shared memory region will be used to store the message queues and the messages.
@@ -117,9 +130,10 @@ void int_to_bytes_little_endian(int val, char* bytes);
 // TODO UPDATE 2: Removed the semaphore array, it will be implemented later, not necessary for now
 // Reads the configuration file
 // TODO: Test the read_config_file function
+// TODO Update: Gorkem tested it, need to test again
 int mf_init() {
     // Read the configuration file
-    // TODO: Test read_config_file function, Gorkem tested it in mf_connect()
+    // TODO: Test read_config_file function, Gorkem tested it
     int conf_status = read_config_file(&config);
     if (conf_status == MF_ERROR) {
         printf("Error: Could not read the configuration file\n");
@@ -213,7 +227,8 @@ int mf_destroy() {
 
     // Free the hole list
     free_holes(&holes);
-    // TODO: Free global variables  
+    
+    // TODO: Free global variables, check if there are any global variables that need to be freeds
 
 
     return (MF_SUCCESS);
