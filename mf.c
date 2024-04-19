@@ -67,6 +67,17 @@ void merge_holes(Hole** head) {
     }
 }
 
+// Cleanup the hole list
+void free_holes(Hole** head) {
+    Hole* current = *head;
+    while (current != NULL) {
+        Hole* temp = current;
+        current = current->next;
+        free(temp);
+    }
+    *head = NULL;
+}
+
 struct MFConfig {
     int SHMEM_SIZE;
     int MAX_MSGS_IN_QUEUE;
@@ -200,8 +211,10 @@ int mf_destroy() {
         return (MF_ERROR);
     }
 
-    // TODO: Free the hole list
-    // TODO: Free global variables
+    // Free the hole list
+    free_holes(&holes);
+    // TODO: Free global variables  
+
 
     return (MF_SUCCESS);
 }
@@ -211,7 +224,6 @@ int mf_destroy() {
 // It will perform the required initialization for the process.
 // TODO: Implement the mf_connect() function
 int mf_connect() {
-
 
 
     return (MF_SUCCESS);
