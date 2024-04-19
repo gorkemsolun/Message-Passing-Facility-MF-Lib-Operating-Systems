@@ -633,6 +633,9 @@ int mf_recv(int qid, void* bufptr, int bufsize) {
     // - Message length (4 bytes)
     // - Message data (datalen bytes)
 
+
+
+
     // If the message queue is empty, block the caller until a message is available
     if (mq_msg_count == 0) {
         // TODO: Block the caller until a message is available
@@ -695,43 +698,65 @@ int mf_recv(int qid, void* bufptr, int bufsize) {
 }
 // prints the status of the current shared memory and its message queues.
 int mf_print() {
-    //mf_init() not called yet.
-    if(holes != NULL){
-        Hole *head = holes;
-        char *start;
-        int k = 1;
-        if(*((char*)shared_memory_address_fixed) == *((char*)(head->start_address))) 
-            start = "Hole";
-        else { 
-            start = "MQ";   
-        }
-        do {
-            if(head->next != NULL) {
-                if(start == "Hole") { 
-                    printf("%s->", start);
-                    start = "MQ";
-                }
-                else {
-                    printf("%s%d->", start, k++);
-                    start = "Hole"; 
-                }
+    Hole *head = holes;
+    int fixed_size = (sizeof(char) * MF_MQ_HEADER_SIZE) * config.MAX_QUEUES_IN_SHMEM;
+    long long copy = (long long)(head->start_address);
+    while(copy < fixed_size + (long long)shared_memory_address_fixed) { 
+        copy += head->size;
+        head = head->next;
+    }
+    printf("fixed size region(%d)->", fixed_size);
+    //mf_init() is called.
+    char *start;
+    int k = 1;
+    if((long long)shared_memory_address_queues == (long long)(head->start_address)) 
+        start = "Hole";
+    else { 
+        start = "MQ";   
+    }
+    do {
+        if(head->next != NULL) {
+            if(start == "Hole") { 
+                printf("%s->", start);
+                start = "MQ";
             }
             else {
-                if(start == "Hole") { 
-                    printf("%s", start);
-                    start = "MQ";
+                printf("(%lu)->", (long long)head->next->start_address);
+                printf("(%lu)->", (long long)head->start_address + head->size);
+                int temp = (long long)(head->start_address + head->size); 
+                while (temp < (long long)head->next->start_address) {
+                    char mq_size_bytes[4];
+                    memcpy(mq_size_bytes, shared_memory_address_fixed + (k) * MF_MQ_HEADER_SIZE+ sizeof(char) * MAX_MQNAMESIZE + sizeof(int), 4);
+                    int mq_size = bytes_to_int_little_endian(mq_size_bytes);
+                    temp += mq_size/4;
+                    printf("%s%d(%lu)->", start, k++, mq_size);
                 }
-                else {
-                    printf("%s%d", start, k++);
-                    start = "Hole"; 
+                start = "Hole"; 
+            }
+        }
+        else {
+            if(start == "Hole") { 
+                printf("%s", start);
+            }
+            else {
+                printf("{%lu}", (long long)head->start_address + head->size);
+                printf("{%lu}", (long long) head->start_address + head->size+config.SHMEM_SIZE);
+                long long temp = (long long)(head->start_address + head->size); 
+                printf("{%lu}\n", head->size);
+                while (temp < (long long) head->start_address + head->size+config.SHMEM_SIZE) {
+                    char mq_size_bytes[4];
+                    memcpy(mq_size_bytes, shared_memory_address_fixed + (k) * MF_MQ_HEADER_SIZE+ sizeof(char) * MAX_MQNAMESIZE + sizeof(int), 4);
+                    int mq_size = bytes_to_int_little_endian(mq_size_bytes);
+                    printf("{%lu}\n", mq_size);
+                    temp += mq_size/4;
+                    printf("%s%d(%lu)->", start, k++, mq_size);
                 }
             }
-            head = head->next;
-        } while (head != NULL);
-        printf("\n");
-        return (MF_SUCCESS);                                    
-    }
-    return (MF_ERROR);
+        }
+        head = head->next;
+    } while (head != NULL);
+    printf("\n");
+    return (MF_SUCCESS);                                                                    
 }
 
 // End of the library functions
@@ -819,7 +844,7 @@ void int_to_bytes_little_endian(int val, char* bytes) {
     bytes[3] = (char)((val >> 24) & 0xFF);
 }
 
-int main() {
+/* int main() {
     char buf[5];
 
     mf_init();
@@ -882,4 +907,4 @@ int main() {
 
     mf_destroy();
     return 0;
-}
+} */
