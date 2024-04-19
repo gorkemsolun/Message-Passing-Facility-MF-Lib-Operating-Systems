@@ -33,8 +33,8 @@
 #define MF_ERROR -1
 // unseccessful completion
 
-// bytes 128+4+4+4+128+4+4+4+4+4, 288 bytes total, description of the header of the message queue lay in the fixed shared memory
-#define MF_MQ_HEADER_SIZE 288
+// bytes 128+4+4+4+128+4+4+4+4, 284 bytes total, description of the header of the message queue lay in the fixed shared memory
+#define MF_MQ_HEADER_SIZE 284
 
 
 int mf_init();
