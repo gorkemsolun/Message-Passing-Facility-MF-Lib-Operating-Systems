@@ -934,6 +934,14 @@ int mf_recv(int qid, void* bufptr, int bufsize) {
         memcpy(mq_next_msg_address_difference_bytes, shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 4, 4);
         int mq_next_msg_address_diff = bytes_to_int_little_endian(mq_next_msg_address_difference_bytes);
 
+
+
+
+    // If the message queue is empty, block the caller until a message is available
+    if (mq_msg_count == 0) {
+        // TODO: Block the caller until a message is available
+        // TODO: Use a semaphore for synchronization
+    }
         // Get the address difference between the end address of the last message in the message queue and the start address of the message queue
         char mq_end_msg_address_difference_bytes[4];
         memcpy(mq_end_msg_address_difference_bytes, shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(char) * MAXFILENAME + sizeof(int) * 5, 4);
@@ -1014,46 +1022,65 @@ int mf_recv(int qid, void* bufptr, int bufsize) {
 
 // Prints the status of the current shared memory and its message queues.
 int mf_print() {
-    // If the shared memory is not initialized, return an error
-    if (holes != NULL) {
-        Hole* head = holes;
-        char* start;
-        int k = 1;
-
-        // Print the holes and message queues in the shared memory
-        // Traverse the holes and message queues in the shared memory
-        // TODO: This control part is wrong, it should be fixed
-        if (*((char*)shared_memory_address_fixed) == *((char*)(head->start_address))) {
-            start = "Hole";
-        } else {
-            start = "MQ";
-        }
-        do {
-            if (head->next != NULL) {
-                if (start == "Hole") {
-                    printf("%s->", start);
-                    start = "MQ";
-                } else {
-                    printf("%s%d->", start, k++);
-                    start = "Hole";
+    Hole *head = holes;
+    int fixed_size = (sizeof(char) * MF_MQ_HEADER_SIZE) * config.MAX_QUEUES_IN_SHMEM;
+    long long copy = (long long)(head->start_address);
+    while(copy < fixed_size + (long long)shared_memory_address_fixed) { 
+        copy += head->size;
+        head = head->next;
+    }
+    printf("fixed size region(%d)->", fixed_size);
+    //mf_init() is called.
+    char *start;
+    int k = 1;
+    if((long long)shared_memory_address_queues == (long long)(head->start_address)) 
+        start = "Hole";
+    else { 
+        start = "MQ";   
+    }
+    do {
+        if(head->next != NULL) {
+            if(start == "Hole") { 
+                printf("%s->", start);
+                start = "MQ";
+            }
+            else {
+                printf("(%lu)->", (long long)head->next->start_address);
+                printf("(%lu)->", (long long)head->start_address + head->size);
+                int temp = (long long)(head->start_address + head->size); 
+                while (temp < (long long)head->next->start_address) {
+                    char mq_size_bytes[4];
+                    memcpy(mq_size_bytes, shared_memory_address_fixed + (k) * MF_MQ_HEADER_SIZE+ sizeof(char) * MAX_MQNAMESIZE + sizeof(int), 4);
+                    int mq_size = bytes_to_int_little_endian(mq_size_bytes);
+                    temp += mq_size/4;
+                    printf("%s%d(%lu)->", start, k++, mq_size);
                 }
-            } else {
-                if (start == "Hole") {
-                    printf("%s", start);
-                    start = "MQ";
-                } else {
-                    printf("%s%d", start, k++);
-                    start = "Hole";
+                start = "Hole"; 
+            }
+        }
+        else {
+            if(start == "Hole") { 
+                printf("%s", start);
+            }
+            else {
+                printf("{%lu}", (long long)head->start_address + head->size);
+                printf("{%lu}", (long long) head->start_address + head->size+config.SHMEM_SIZE);
+                long long temp = (long long)(head->start_address + head->size); 
+                printf("{%lu}\n", head->size);
+                while (temp < (long long) head->start_address + head->size+config.SHMEM_SIZE) {
+                    char mq_size_bytes[4];
+                    memcpy(mq_size_bytes, shared_memory_address_fixed + (k) * MF_MQ_HEADER_SIZE+ sizeof(char) * MAX_MQNAMESIZE + sizeof(int), 4);
+                    int mq_size = bytes_to_int_little_endian(mq_size_bytes);
+                    printf("{%lu}\n", mq_size);
+                    temp += mq_size/4;
+                    printf("%s%d(%lu)->", start, k++, mq_size);
                 }
             }
-            head = head->next;
-        } while (head != NULL);
-
-        printf("\n");
-        return (MF_SUCCESS);
-    }
-
-    return (MF_ERROR);
+        }
+        head = head->next;
+    } while (head != NULL);
+    printf("\n");
+    return (MF_SUCCESS);                                                                    
 }
 
 // End of the library functions
@@ -1142,7 +1169,7 @@ void int_to_bytes_little_endian(int val, char* bytes) {
 }
 
 // As the semaphores are started being used in the library, we can't use the main function for testing the library functions.
-/* int main() {
+int main() {
     char buf[5];
 
     mf_init();
@@ -1212,85 +1239,4 @@ void int_to_bytes_little_endian(int val, char* bytes) {
 
     mf_destroy();
     return 0;
-} */
-
-/* #include <time.h>
-#define COUNT 10
-char* semname1 = "/semaphore1";
-char* semname2 = "/semaphore2";
-sem_t* sem1, * sem2;
-char* mqname1 = "msgqueue1";
-
-int main(int argc, char** argv) {
-    int ret, i, qid;
-    char sendbuffer[MAX_DATALEN];
-    int n_sent, n_received;
-    char recvbuffer[MAX_DATALEN];
-    int sentcount;
-    int receivedcount;
-    int totalcount;
-
-    totalcount = COUNT;
-    if (argc == 2)
-        totalcount = atoi(argv[1]);
-
-    sem1 = sem_open(semname1, O_CREAT, 0666, 0); // init sem
-    sem2 = sem_open(semname2, O_CREAT, 0666, 0); // init sem
-
-    mf_init();
-
-    srand(time(0));
-    printf("RAND_MAX is %d\n", RAND_MAX);
-
-    ret = fork();
-    if (ret > 0) {
-        // parent process - P1
-        // parent will create a message queue
-
-        mf_connect();
-
-        mf_create(mqname1, 16); //  create mq;  16 KB
-
-        qid = mf_open(mqname1);
-
-        sem_post(sem1);
-
-        while (1) {
-            n_sent = rand() % MAX_DATALEN;
-            ret = mf_send(qid, (void*)sendbuffer, n_sent);
-            printf("app sent message, datalen=%d\n", n_sent);
-            sentcount++;
-            if (sentcount == totalcount)
-                break;
-        }
-        mf_close(qid);
-        sem_wait(sem2);
-        // we are sure other process received the messages
-
-        mf_remove(mqname1);   // remove mq
-        mf_disconnect();
-    } else if (ret == 0) {
-        // child process - P2
-        // child will connect, open mq, use mq
-        printf("child process1\n");
-        sem_wait(sem1);
-        // we are sure mq was created
-        printf("child process2\n");
-
-        mf_connect();
-
-        qid = mf_open(mqname1);
-
-        while (1) {
-            n_received = mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);
-            printf("app received message, datalen=%d\n", n_received);
-            receivedcount++;
-            if (receivedcount == totalcount)
-                break;
-        }
-        mf_close(qid);
-        mf_disconnect();
-        sem_post(sem2);
-    }
-    return 0;
-} */
+}
