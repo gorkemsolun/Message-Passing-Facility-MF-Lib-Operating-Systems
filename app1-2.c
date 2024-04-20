@@ -23,9 +23,13 @@ int main(int argc, char** argv) {
 
 
         mf_print();
+    mf_create("mq0", 32);
+    int g = mf_open("mq0");
+    printf("qid: %d\n", g);
+    mf_print();
 
     mf_create("mq1", 64);
-    int g = mf_open("mq1");
+    g = mf_open("mq1");
     printf("qid: %d\n", g);
     mf_print();
     mf_send(g, "Hello", 5);
@@ -49,9 +53,11 @@ int main(int argc, char** argv) {
     mf_recv(g, buf, 5);
     printf("Received: %s\n", buf);
 
+    mf_remove("mq0");
+    printf("qid: %d\n", g);
+    mf_print();
 
-
-    mf_create("mq2", 32);
+    mf_create("mq2", 128);
     int f = mf_open("mq2");
     printf("qid: %d\n", f);
 
