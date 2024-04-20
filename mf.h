@@ -1,6 +1,9 @@
 #ifndef _MF_H_
 #define _MF_H_
 
+// Görkem Kadir Solun 22003214
+// Murat Çağrı Kara 22102505
+
 //You should not change this file. It is the interface of the MF library.
 
 #define CONFIG_FILENAME "mf.config"

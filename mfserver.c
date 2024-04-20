@@ -7,6 +7,9 @@
 #include <string.h>
 #include "mf.h"
 
+// Görkem Kadir Solun 22003214
+// Murat Çağrı Kara 22102505
+
 
 // write the signal handler function
 // it will call mf_destroy()
@@ -24,8 +27,6 @@ void sigint_handler(int signum) {
     exit(0);
 }
 
-
-// TODO: Control if the start of the program is correct as described in the project description
 int main(int argc, char* argv[]) {
 
     // crtl - c
@@ -52,8 +53,6 @@ int main(int argc, char* argv[]) {
         printf("mf_init failed: %d\n", result);
         exit(1);
     }
-
-    // mf_create("mq1", 16); //  create mq;  size in KB
 
     printf("mfserver initialized successfully.\n");
     printf("mfserver pid=%d\n", (int)getpid());

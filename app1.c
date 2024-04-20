@@ -17,7 +17,7 @@ sem_t* sem1, * sem2;
 char* mqname1 = "msgqueue1";
 
 int main(int argc, char** argv) {
-    int ret, i, qid;
+    int ret, qid;
     // char sendbuffer[MAX_DATALEN]; // original code
     char sendbuffer[] = "Hello, World!AABBCCDDEEFFGGHHIIUUYYTTHHNNMMOOKKLLPPCCVVDDSSAAQQWWEE11223344556677889900--zzxxccvvbbnnmm<<TTGGHHYYUUJJKKIIOOLLPPMMNNBBVVCCXXZZAASSDDFFGGHHYYTTRREEWWQQ"; // not in original code
     int sendbuffer_len = strlen(sendbuffer); // not in original code

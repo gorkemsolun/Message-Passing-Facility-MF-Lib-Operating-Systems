@@ -23,6 +23,8 @@ main(int argc, char** argv) {
     int n_recv;
     int j;
 
+    struct timespec start, end;
+
     if (argc != 1) {
         printf("usage: ./consumer\n");
         exit(1);
@@ -31,8 +33,18 @@ main(int argc, char** argv) {
     mf_connect();
     mf_create(mqname, 16);
     qid = mf_open(mqname);
+    
+    int is_first = 0;
+
     while (1) {
         n_recv = mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);
+
+        if (is_first == 0) {
+            is_first = 1;
+            clock_gettime(CLOCK_MONOTONIC, &start);
+        }
+
+        
         if (recvbuffer[0] == -1)
             break;
         // check if data received correctly
@@ -47,6 +59,15 @@ main(int argc, char** argv) {
         i++;
         printf("received data message %d, size=%d\n", i, n_recv);
     }
+
+    
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    float elapsedTime = (float)(end.tv_sec - start.tv_sec + (end.tv_nsec - start.tv_nsec) / 1000000000.0);
+    if (elapsedTime > 0) {
+        printf("Elapsed time: %f seconds\n", elapsedTime);
+    }
+
+
     mf_close(qid);
     mf_remove(mqname);
     mf_disconnect();
