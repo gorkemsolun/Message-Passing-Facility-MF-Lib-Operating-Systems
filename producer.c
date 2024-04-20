@@ -15,16 +15,15 @@
 
 #define COUNT 10
 
-char mqname[32] = "mq8";
+char mqname[32] = "mq1";
 int totalcount = COUNT;
 
 int
 main(int argc, char** argv) {
     int sentcount, qid, n_sent;
-    // char sendbuffer[MAX_DATALEN]; // original code
-    char sendbuffer[] = "Hello, World!AABBCCDDEEFFGGHHIIUUYYTTHHNNMMOOKKLLPPCCVVDDSSAAQQWWEE11223344556677889900--zzxxccvvbbnnmm<<TTGGHHYYUUJJKKIIOOLLPPMMNNBBVVCCXXZZAASSDDFFGGHHYYTTRREEWWQQ"; // not in original code
-    int sendbuffer_len = strlen(sendbuffer); // not in original code
+    char sendbuffer[MAX_DATALEN];
     struct timespec t1;
+    int j;
 
     totalcount = COUNT;
     if (argc != 2) {
@@ -42,22 +41,15 @@ main(int argc, char** argv) {
     sentcount = 0;
     while (1) {
         if (sentcount < totalcount) {
-            // generate a random data size
-            // n_sent = 1 + (rand() % (MAX_DATALEN - 1)); // original code
-            n_sent = 1 + rand() % sendbuffer_len; // not in original code
-            printf("app sending message, datalen=%d\n", n_sent);
-            // data size is at least 1
+            n_sent = 1 + (rand() % (MAX_DATALEN - 1));
             sendbuffer[0] = 1;
-            int is_sent = mf_send(qid, (void*)sendbuffer, n_sent);
-
-            if (is_sent == -1) {
-                printf("send failed\n");
-                break;
+            if (n_sent > 1) {
+                for (j = 1; j < n_sent; ++j)
+                    sendbuffer[j] = 'A'; // just place some data/content
             }
-
+            mf_send(qid, (void*)sendbuffer, n_sent);
             sentcount++;
             printf("sent data message %d\n", sentcount);
-            printf("Message: %s\n", sendbuffer); // not in original code, prints entire buffer
         } else {
             sendbuffer[0] = -1;
             mf_send(qid, (void*)sendbuffer, 1);
@@ -70,4 +62,3 @@ main(int argc, char** argv) {
     mf_disconnect();
     return 0;
 }
-
