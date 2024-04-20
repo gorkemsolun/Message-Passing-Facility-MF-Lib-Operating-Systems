@@ -21,7 +21,9 @@ int totalcount = COUNT;
 int
 main(int argc, char** argv) {
     int sentcount, qid, n_sent;
-    char sendbuffer[MAX_DATALEN];
+    // char sendbuffer[MAX_DATALEN]; // original code
+    char sendbuffer[] = "Hello, World!AABBCCDDEEFFGGHHIIUUYYTTHHNNMMOOKKLLPPCCVVDDSSAAQQWWEE11223344556677889900--zzxxccvvbbnnmm<<TTGGHHYYUUJJKKIIOOLLPPMMNNBBVVCCXXZZAASSDDFFGGHHYYTTRREEWWQQ"; // not in original code
+    int sendbuffer_len = strlen(sendbuffer); // not in original code
     struct timespec t1;
 
     totalcount = COUNT;
@@ -41,12 +43,14 @@ main(int argc, char** argv) {
     while (1) {
         if (sentcount < totalcount) {
             // generate a random data size
-            n_sent = 1 + (rand() % (MAX_DATALEN - 1));
+            // n_sent = 1 + (rand() % (MAX_DATALEN - 1)); // original code
+            n_sent = rand() % sendbuffer_len; // not in original code
             // data size is at least 1
             sendbuffer[0] = 1;
             mf_send(qid, (void*)sendbuffer, n_sent);
             sentcount++;
             printf("sent data message %d\n", sentcount);
+            printf("Message: %s\n", sendbuffer); // not in original code, prints entire buffer
         } else {
             sendbuffer[0] = -1;
             mf_send(qid, (void*)sendbuffer, 1);

@@ -10,7 +10,7 @@
 #include <time.h>
 #include "mf.h"
 
-#define COUNT 4 // 10 in original code
+#define COUNT 2 // 10 in original code
 char* semname1 = "/semaphore1";
 char* semname2 = "/semaphore2";
 sem_t* sem1, * sem2;
@@ -32,8 +32,6 @@ int main(int argc, char** argv) {
 
     sem1 = sem_open(semname1, O_CREAT, 0666, 0); // init sem
     sem2 = sem_open(semname2, O_CREAT, 0666, 0); // init sem
-
-    mf_init(); // not in original code
 
     srand(time(0));
     printf("RAND_MAX is %d\n", RAND_MAX);
@@ -89,5 +87,10 @@ int main(int argc, char** argv) {
         mf_disconnect();
         sem_post(sem2);
     }
+
+    // Remove semaphores
+    sem_unlink(semname1);
+    sem_unlink(semname2);
+
     return 0;
 }

@@ -47,8 +47,6 @@ void test_messageflow_2p1mq() {
     int receivedcount = 0;
     int i;
 
-    mf_init(); // not in original code
-
     mf_connect();
     mf_create("mq1", 16); //  create mq;  size in KB
 
@@ -106,8 +104,6 @@ void test_messageflow_4p2mq() {
     int receivedcount = 0;
     int i;
 
-    //mf_init(); // not in original code
-
     printf("RAND_MAX is %d\n", RAND_MAX);
 
     mf_connect(); // in original code
@@ -133,7 +129,11 @@ void test_messageflow_4p2mq() {
                 break;
         }
         mf_close(qid);
+
+        printf("P1 closing mq1\n");
         mf_disconnect();
+
+        printf("P1 disconnecting\n");
         exit(0);
     }
     ret1 = fork();
@@ -152,7 +152,11 @@ void test_messageflow_4p2mq() {
                 break;
         }
         mf_close(qid);
+
+        printf("P2 closing mq1\n");
         mf_disconnect();
+
+        printf("P2 disconnecting\n");
         exit(0);
     }
 
@@ -175,7 +179,11 @@ void test_messageflow_4p2mq() {
                 break;
         }
         mf_close(qid);
+
+        printf("P3 closing mq2\n");
         mf_disconnect();
+
+        printf("P3 disconnecting\n");
         exit(0);
     }
     ret1 = fork();
@@ -194,7 +202,11 @@ void test_messageflow_4p2mq() {
                 break;
         }
         mf_close(qid);
+
+        printf("P4 closing mq2\n");
         mf_disconnect();
+
+        printf("P4 disconnecting\n");
         exit(0);
     }
 

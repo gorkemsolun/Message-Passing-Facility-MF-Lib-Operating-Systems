@@ -36,6 +36,9 @@
 // bytes 128+4+4+4+4+4+4+4, 156 bytes total, description of the header of the message queue lay in the fixed shared memory
 #define MF_MQ_HEADER_SIZE 156
 
+// bytes 16, 4+4+4+4, description of the shared memory lay after the fixed shared memory
+#define MF_SHMEM_INFO_SIZE 16
+
 
 int mf_init();
 int mf_destroy();

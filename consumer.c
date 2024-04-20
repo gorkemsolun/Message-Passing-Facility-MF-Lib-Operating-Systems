@@ -16,8 +16,7 @@
 
 char mqname[32] = "mq1";
 
-int
-main(int argc, char** argv) {
+int main(int argc, char** argv) {
     int qid;
     char recvbuffer[MAX_DATALEN];
     int i = 0;
@@ -34,7 +33,9 @@ main(int argc, char** argv) {
 
     qid = mf_open(mqname);
     while (1) {
-        mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);
+        int n_received = mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);
+        printf("app received message, datalen=%d\n", n_received);
+        printf("Message: %s\n", recvbuffer); // not in original code, prints the buffer, prints maximum so far
         if (recvbuffer[0] == -1)
             break;
         i++;
