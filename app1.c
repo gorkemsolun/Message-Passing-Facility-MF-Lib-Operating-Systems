@@ -10,7 +10,7 @@
 #include <time.h>
 #include "mf.h"
 
-#define COUNT 10
+#define COUNT 3 // 10 in original code
 char* semname1 = "/semaphore1";
 char* semname2 = "/semaphore2";
 sem_t* sem1, * sem2;
@@ -18,14 +18,15 @@ char* mqname1 = "msgqueue1";
 
 int main(int argc, char** argv) {
     int ret, i, qid;
-    char sendbuffer[MAX_DATALEN];
+    // char sendbuffer[MAX_DATALEN]; // original code
+    char sendbuffer[] = "Hello, World!AABBCCDDEEFFGGHHIIUUYYTTHHNNMMOOKKLLPPCCVVDDSSAAQQWWEE11223344556677889900--zzxxccvvbbnnmm<<TTGGHHYYUUJJKKIIOOLLPPMMNNBBVVCCXXZZAASSDDFFGGHHYYTTRREEWWQQ"; // not in original code
+    int sendbuffer_len = strlen(sendbuffer); // not in original code
     int n_sent, n_received;
     char recvbuffer[MAX_DATALEN];
-    int sentcount;
+    int sentcount = 0;
     int receivedcount;
-    int totalcount;
+    int totalcount = COUNT;
 
-    totalcount = COUNT;
     if (argc == 2)
         totalcount = atoi(argv[1]);
 
@@ -42,7 +43,7 @@ int main(int argc, char** argv) {
         // parent process - P1
         // parent will create a message queue
 
-        mf_connect();
+        mf_connect(); // in original code
 
         mf_create(mqname1, 16); //  create mq;  16 KB
 
@@ -51,9 +52,11 @@ int main(int argc, char** argv) {
         sem_post(sem1);
 
         while (1) {
-            n_sent = rand() % MAX_DATALEN;
+            // n_sent = rand() % MAX_DATALEN; // original code
+            n_sent = rand() % sendbuffer_len; // not in original code
             ret = mf_send(qid, (void*)sendbuffer, n_sent);
             printf("app sent message, datalen=%d\n", n_sent);
+            printf("Message: %s\n", sendbuffer); // not in original code, prints entire buffer
             sentcount++;
             if (sentcount == totalcount)
                 break;
@@ -70,13 +73,14 @@ int main(int argc, char** argv) {
         sem_wait(sem1);
         // we are sure mq was created
 
-        mf_connect();
+        mf_connect(); // in original code
 
         qid = mf_open(mqname1);
 
         while (1) {
             n_received = mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);
             printf("app received message, datalen=%d\n", n_received);
+            printf("Message: %s\n", recvbuffer); // not in original code, prints the buffer, prints maximum so far
             receivedcount++;
             if (receivedcount == totalcount)
                 break;
