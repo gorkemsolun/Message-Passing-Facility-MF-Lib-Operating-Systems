@@ -56,6 +56,9 @@ int main(int argc, char** argv) {
             printf("app sent message, datalen=%d\n", n_sent);
             printf("Message: %s\n", sendbuffer); // not in original code, prints entire buffer
             sentcount++;
+
+            mf_print();
+
             if (sentcount == totalcount)
                 break;
         }
@@ -80,6 +83,9 @@ int main(int argc, char** argv) {
             printf("app received message, datalen=%d\n", n_received);
             printf("Message: %s\n", recvbuffer); // not in original code, prints the buffer, prints maximum so far
             receivedcount++;
+
+            //mf_print();
+
             if (receivedcount == totalcount)
                 break;
         }

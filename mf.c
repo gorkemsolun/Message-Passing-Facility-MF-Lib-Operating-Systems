@@ -34,7 +34,6 @@ char base_sem_name[MAXFILENAME] = "/semaphore"; // Base semaphore name
 
 // Helper function prototypes
 int read_config_file(struct MFConfig* config);
-void print_MFConfig(struct MFConfig* config);
 int bytes_to_int_little_endian(char* bytes);
 void int_to_bytes_little_endian(int val, char* bytes);
 
@@ -348,7 +347,13 @@ int mf_create(char* mqname, int mqsize) {
     // Check if the count of message queues in the shared memory region is less than the maximum alslowed
     if (msg_queue_count >= config.MAX_QUEUES_IN_SHMEM) {
         printf("Error: Maximum number of message queues in the shared memory region is reached\n");
+        printf("Consider increasing the maximum number of message queues in the shared memory region from config.\n");
         return (MF_ERROR);
+    }
+
+    // Warning if the message queue count is high
+    if (msg_queue_count >= 100 && 100 >= config.MAX_QUEUES_IN_SHMEM) {
+        printf("Warning: Message queue count is %d. Be careful.", msg_queue_count);
     }
 
     // Check if the message queue size is within the limits
@@ -396,6 +401,7 @@ int mf_create(char* mqname, int mqsize) {
     int visited_free_space = 0; // Visited free space in the shared memory region
     while (visited_free_space <= msg_queue_count + 1) {
         end_free_space_j = free_space_size;
+
         // Loop through the message queues in the fixed shared memory region
         // to find an empty slot by checking the address differences of the start of message queues
         // Get minimum address difference of the start of the message queues higher than the start of the free space
@@ -1241,23 +1247,28 @@ int mf_print() {
     printf("===============================================================================\n");
     printf("Status of the current shared memory...\n");
 
-    // Get the current count of message queues from the shared memory information region and print it
+    // Get the current count of message queues in the shared memory information and print it
     char msg_queue_count_bytes[4];
-    memcpy(msg_queue_count_bytes, shared_memory_address_fixed + sizeof(char) * MAX_MQNAMESIZE, 4);
+    memcpy(msg_queue_count_bytes, shared_memory_address_info, 4);
     int msg_queue_count = bytes_to_int_little_endian(msg_queue_count_bytes);
     printf("Number of message queues: %d\n", msg_queue_count);
 
-    // Get the free space in the shared memory region and print it
+    // Get the total free space in the shared memory information and print it
     char free_space_bytes[4];
-    memcpy(free_space_bytes, shared_memory_address_fixed + sizeof(char) * MAX_MQNAMESIZE + sizeof(int), 4);
+    memcpy(free_space_bytes, shared_memory_address_info + sizeof(int), 4);
     int free_space = bytes_to_int_little_endian(free_space_bytes);
-    printf("Free space in the shared memory region: %d bytes\n", free_space);
+    printf("Total free space in the shared memory region: %d bytes\n", free_space);
 
-    // Get the filled space in the shared memory region by queues and print it
+    // Get the total filled space in the shared memory information and print it
     char filled_space_bytes[4];
-    memcpy(filled_space_bytes, shared_memory_address_fixed + sizeof(char) * MAX_MQNAMESIZE + sizeof(int) * 2, 4);
+    memcpy(filled_space_bytes, shared_memory_address_info + sizeof(int) * 2, 4);
     int filled_space = bytes_to_int_little_endian(filled_space_bytes);
-    printf("Filled space in the shared memory region by message queues: %d bytes\n", filled_space);
+    printf("Total filled space in the shared memory region: %d bytes\n", filled_space);
+
+    // Get the total process count in the shared memory information and print it
+    char process_count_bytes[4];
+    memcpy(process_count_bytes, shared_memory_address_info + sizeof(int) * 3, 4);
+    int process_count = bytes_to_int_little_endian(process_count_bytes);
 
     // Print the filled space by headers
     printf("Filled space in the shared memory region by message queue headers: %d bytes\n", MF_MQ_HEADER_SIZE * config.MAX_QUEUES_IN_SHMEM);
@@ -1265,84 +1276,85 @@ int mf_print() {
     // Print the filled space by information region
     printf("Filled space in the shared memory region by information region: %d bytes\n", MF_SHMEM_INFO_SIZE);
 
-    /* Good Old Print Implementation of Cagri
-    Hole* head = holes;
-    long fixed_size = (sizeof(char) * MF_MQ_HEADER_SIZE) * config.MAX_QUEUES_IN_SHMEM;
-    while (head->start_address < shared_memory_address_fixed + fixed_size) {
-        head = head->next;
-    }
-    printf("fixed size region(%d)-> ", fixed_size);
+    // Print the shared memory size
+    printf("Shared memory size: %d\n", config.SHMEM_SIZE * 1024);
+    
+    // Print the filled and free space in the shared memory region in a sequence
+    
+    // Initialize two pointers, one for the start of the free space and one for the end of the free space
+    // Please note that these are all address differences
+    int start_free_space_i = 0;
 
-    //mf_init() is called.
-    int k = 1;
-    do {
-        if (head != NULL && head->next != NULL) {
-            char mq_start_address_diff_bytes[4];
-            memcpy(mq_start_address_diff_bytes, shared_memory_address_fixed + (k-1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int) * 3, 4);
-            int mq_strt_address_diff = bytes_to_int_little_endian(mq_start_address_diff_bytes);
+    // End of the free space is the end of the shared memory region, meaning end of the shared memory region for the message queues
+    // So we remove the size of the fixed shared memory region and the size of the shared memory information region from the shared memory size
 
-            // Calculate the start address of the message queue in the shared memory region
-            void* mq_start_addr = shared_memory_address_queues + mq_strt_address_diff;
-            if (head->start_address < mq_start_addr) {
-                printf("Hole->");
-            } else {
-                // Get the message queue size
-                char mq_size_bytes[4];
+    // Size of the free space
+    int free_space_size = config.SHMEM_SIZE * 1024 - (sizeof(char) * MF_MQ_HEADER_SIZE) * config.MAX_QUEUES_IN_SHMEM - MF_SHMEM_INFO_SIZE;
+    // End of the free space
+    int end_free_space_j = free_space_size;
+    
+    printf("Print the filled and free space in the shared memory region in a sequence...\n");
+    printf("Beware that the below all addresses are address differences in bytes.\n");
 
-                // Get the address difference between the start address of the message queue and the start address of the shared memory region for message queues
-                char mq_start_address_difference_bytes[4];
-                memcpy(mq_start_address_difference_bytes, shared_memory_address_fixed + (k-1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int) * 3, 4);
-                int mq_start_address_diff = bytes_to_int_little_endian(mq_start_address_difference_bytes);
+    // Loop through the message queues in the fixed shared memory region to find the first empty slot by
+    // checking the address differences of the message queues in the fixed shared memory region
+    // While looping, update the start and end of the free space
+    int end_of_last_mq = 0; // End of the filled space right after the last empty space
+    int visited_free_space = 0; // Visited free space in the shared memory region
+    while (visited_free_space <= msg_queue_count + 1) {
+        end_free_space_j = free_space_size;
 
-                // Calculate the start address of the message queue in the shared memory region
-                void* mq_start_address = shared_memory_address_queues + mq_start_address_diff;
-                while (mq_start_address < head->next->start_address) {
-
-                    memcpy(mq_size_bytes, shared_memory_address_fixed + (k-1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int), 4);
-                    int mq_size = bytes_to_int_little_endian(mq_size_bytes);
-
-                    printf("MQ%d(%lu)->", k++, mq_size);
-                    // Get the address difference between the start address of the message queue and the start address of the shared memory region for message queues
-                    memcpy(mq_start_address_difference_bytes, shared_memory_address_fixed + (k-1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int) * 3, 4);
-                    mq_start_address_diff = bytes_to_int_little_endian(mq_start_address_difference_bytes);
-
-                    // Calculate the start address of the message queue in the shared memory region
-                    mq_start_address = shared_memory_address_queues + mq_start_address_diff;
-                }
+        // Loop through the message queues in the fixed shared memory region
+        // to find an empty slot by checking the address differences of the start of message queues
+        // Get minimum address difference of the start of the message queues higher than the start of the free space
+        for (int i = 0; i < config.MAX_QUEUES_IN_SHMEM; i++) {
+            // First check if the message queue is empty by checking the message queue id
+            char mq_id_bytes[4];
+            memcpy(mq_id_bytes, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE, 4);
+            int mq_id = bytes_to_int_little_endian(mq_id_bytes);
+            // If the message queue is empty, continue
+            if (mq_id == 0) {
+                continue;
             }
-        } else {
-            if (head->start_address == shared_memory_address_fixed + fixed_size) {
-                printf("%s", "Hole");
-            } else {
-                // Get the message queue size
+
+            // Get the address difference between the start address of the message queue and the start address of the shared memory region for message queues
+            char mq_start_address_difference_bytes[4];
+            memcpy(mq_start_address_difference_bytes, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int) * 3, 4);
+            int mq_start_address_diff = bytes_to_int_little_endian(mq_start_address_difference_bytes);
+
+            // Check if the start address of the message queue is higher than the start of the free space
+            // and lower than the end of the free space, then update the end of the free space and end of the last message queue
+            if (mq_start_address_diff < end_free_space_j && mq_start_address_diff >= start_free_space_i) {
+                end_free_space_j = mq_start_address_diff;
+
+                // Get the message queue size to calculate the end of the last message queue
                 char mq_size_bytes[4];
+                memcpy(mq_size_bytes, shared_memory_address_fixed + i * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int), 4);
+                int mq_size = bytes_to_int_little_endian(mq_size_bytes);
 
-                // Get the address difference between the start address of the message queue and the start address of the shared memory region for message queues
-                char mq_start_address_difference_bytes[4];
-                memcpy(mq_start_address_difference_bytes, shared_memory_address_fixed + (k-1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int) * 3, 4);
-                int mq_start_address_diff = bytes_to_int_little_endian(mq_start_address_difference_bytes);
-
-                int mq_size;
-                // Calculate the start address of the message queue in the shared memory region
-                void* mq_start_address = shared_memory_address_queues + mq_start_address_diff;
-                while (k <= msg_queue_count) {
-                    memcpy(mq_size_bytes, shared_memory_address_fixed + (k-1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int), 4);
-                    mq_size = bytes_to_int_little_endian(mq_size_bytes);
-
-                    printf("MQ%d(%lu)->", k++, mq_size);
-                    // Get the address difference between the start address of the message queue and the start address of the shared memory region for message queues
-                    memcpy(mq_start_address_difference_bytes, shared_memory_address_fixed + (k-1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE + sizeof(int) * 3, 4);
-                    mq_start_address_diff = bytes_to_int_little_endian(mq_start_address_difference_bytes);
-
-                    // Calculate the start address of the message queue in the shared memory region
-                    mq_start_address = shared_memory_address_queues + mq_start_address_diff;
-                }
-                if(head != NULL && mq_start_address < head->start_address)
-                    printf("%s", "Hole");
+                // Calculate the end of the last message queue to update the start of the free space next time
+                end_of_last_mq = mq_start_address_diff + mq_size;
             }
         }
-        head = head->next;
-    } while (head != NULL); */
+
+        // Update the visited free space
+        visited_free_space++;
+
+        // Print the start and end of the free space if the free space is not 0
+        if (start_free_space_i != end_free_space_j) {
+            printf("Start free space: %d, End free space: %d\n", start_free_space_i, end_free_space_j);
+        }
+
+        // Print the filled space in the shared memory region if the visited free space is not the message queue count
+        if (visited_free_space != msg_queue_count + 1) {
+            printf("Filled space in the shared memory region: %d\n", end_free_space_j - start_free_space_i);
+        }
+
+        // If the empty space is not enough, update the start of the free space to the end of the last message queue
+        // Update the start of the free space to the end of the last message queue
+        start_free_space_i = end_of_last_mq;
+    }
+
     printf("\n===============================================================================\n");
     return (MF_SUCCESS);
 }
@@ -1381,32 +1393,26 @@ int read_config_file(struct MFConfig* config) {
             config->MAX_QUEUES_IN_SHMEM = atoi(value);
         } else if (strcmp(key, "SHMEM_NAME") == 0) {
             strcpy(config->SHMEM_NAME, value);
-            // Remove the first character of the string, which is "/"
-            // This is necessary because shm_open() function does not accept the first character as "/"
-            memmove(config->SHMEM_NAME, config->SHMEM_NAME + 1, strlen(config->SHMEM_NAME));
+            // Remove the first character of the string, if it is "/"
+            if (config->SHMEM_NAME[0] == '/') {
+                memmove(config->SHMEM_NAME, config->SHMEM_NAME + 1, strlen(config->SHMEM_NAME));
+            }
         }
     }
 
-    // TODO: Debugging: Print the MFConfig structure
-    print_MFConfig(config);
+    printf("SHMEM_SIZE: %d\n", config->SHMEM_SIZE);
+    printf("MAX_MSGS_IN_QUEUE: %d\n", config->MAX_MSGS_IN_QUEUE);
+    printf("MAX_QUEUES_IN_SHMEM: %d\n", config->MAX_QUEUES_IN_SHMEM);
+    printf("SHMEM_NAME: %s\n", config->SHMEM_NAME);
 
     fclose(file);
 
     return (MF_SUCCESS);
 }
 
-// Print the MFConfig structure
-// NOTE: This function may only be used for debugging purposes
-void print_MFConfig(
-    struct MFConfig* config
-) {
-    printf("SHMEM_SIZE: %d\n", config->SHMEM_SIZE);
-    printf("MAX_MSGS_IN_QUEUE: %d\n", config->MAX_MSGS_IN_QUEUE);
-    printf("MAX_QUEUES_IN_SHMEM: %d\n", config->MAX_QUEUES_IN_SHMEM);
-    printf("SHMEM_NAME: %s\n", config->SHMEM_NAME);
-}
 
 // Check if the value is negative, if it is, convert it to a positive value
+// This function is used to handle the overflow of the char type
 int char_overflow_check(int value) {
     if (value < 0) {
         value += 256;
@@ -1429,78 +1435,3 @@ void int_to_bytes_little_endian(int val, char* bytes) {
     bytes[2] = (char)((val >> 16) & 0xFF);
     bytes[3] = (char)((val >> 24) & 0xFF);
 }
-
-/* // TODO: Remove the main function after the library functions are tested
-// As the semaphores are started being used in the library, we can't use the main function for testing the library functions.
-int main() {
-    char buf[5];
-
-    mf_init();
-
-
-    //mf_print();
-
-    mf_create("mq1", 64);
-    int g = mf_open("mq1");
-    printf("qid: %d\n", g);
-    //mf_print();
-    mf_send(g, "Hello", 5);
-    mf_send(g, "World", 5);
-
-    mf_recv(g, buf, 5);
-    printf("Received: %s\n", buf);
-    mf_recv(g, buf, 5);
-    printf("Received: %s\n", buf);
-
-    mf_send(g, "kalem", 5);
-    mf_send(g, "silgi", 5);
-    mf_send(g, "defter", 6);
-    mf_send(g, "kitap", 5);
-
-    mf_recv(g, buf, 5);
-    printf("Received: %s\n", buf);
-
-    mf_send(g, "kalem", 5);
-
-    mf_recv(g, buf, 5);
-    printf("Received: %s\n", buf);
-
-
-    mf_remove("mq1");
-    mf_remove("mq2");
-
-    mf_create("mq2", 32);
-    mf_remove("mq2");
-
-
-
-    mf_create("mq2", 32);
-    int f = mf_open("mq2");
-    printf("qid: %d\n", f);
-
-    mf_send(f, "World", 5);
-
-    mf_recv(f, buf, 5);
-    //mf_print();
-    printf("Received: %s\n", buf);
-
-
-
-
-    mf_create("mq3", 16);
-    int h = mf_open("mq3");
-    printf("qid: %d\n", h);
-    //mf_print();
-    mf_send(h, "Test", 4);
-
-    mf_recv(h, buf, 5);
-    printf("Received: %s\n", buf);
-
-
-
-
-
-
-    mf_destroy();
-    return 0;
-} */
