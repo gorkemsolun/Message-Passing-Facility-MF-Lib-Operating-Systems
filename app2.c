@@ -48,14 +48,14 @@ void test_messageflow_2p1mq() {
     int i;
 
     mf_connect();
-    mf_create("mq1", 16); //  create mq;  size in KB
+    mf_create("mqq1", 16); //  create mq;  size in KB
 
     ret1 = fork();
     if (ret1 == 0) {
         //  process - P1
         //  will create a message queue
         mf_connect();
-        qid = mf_open("mq1");
+        qid = mf_open("mqq1");
         while (1) {
             n_sent = rand() % MAX_DATALEN;
             mf_send(qid, (void*)sendbuffer, n_sent);
@@ -71,7 +71,7 @@ void test_messageflow_2p1mq() {
     if (ret1 == 0) {
         //  process - P2
         mf_connect();
-        qid = mf_open("mq1");
+        qid = mf_open("mqq1");
         while (1) {
             mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);
             receivedcount++;
@@ -86,7 +86,7 @@ void test_messageflow_2p1mq() {
     for (i = 0; i < 2; ++i)
         wait(NULL);
 
-    mf_remove("mq1");
+    mf_remove("mqq1");
     mf_disconnect();
 }
 
@@ -107,17 +107,17 @@ void test_messageflow_4p2mq() {
     printf("RAND_MAX is %d\n", RAND_MAX);
 
     mf_connect(); // in original code
-    mf_create("mq1", 16); //  create mq;  size in KB
-    mf_create("mq2", 16); //  create mq;  size in KB
+    mf_create("mqq1", 16); //  create mq;  size in KB
+    mf_create("mqq2", 16); //  create mq;  size in KB
 
-    printf("mq1 and mq2 created\n");
+    printf("mqq1 and mqq2 created\n");
     ret1 = fork();
     if (ret1 == 0) {
         // P1
         // P1 will send
         srand(time(0));
         mf_connect(); // in original code
-        qid = mf_open("mq1");
+        qid = mf_open("mqq1");
         while (1) {
             // n_sent = rand() % MAX_DATALEN; // original code
             n_sent = rand() % sendbuffer_len; // not in original code
@@ -130,7 +130,7 @@ void test_messageflow_4p2mq() {
         }
         mf_close(qid);
 
-        printf("P1 closing mq1\n");
+        printf("P1 closing mqq1\n");
         mf_disconnect();
 
         printf("P1 disconnecting\n");
@@ -142,7 +142,7 @@ void test_messageflow_4p2mq() {
         // P2 will receive
         srand(time(0));
         mf_connect(); // in original code
-        qid = mf_open("mq1");
+        qid = mf_open("mqq1");
         while (1) {
             int n_received = mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);
             receivedcount++;
@@ -153,7 +153,7 @@ void test_messageflow_4p2mq() {
         }
         mf_close(qid);
 
-        printf("P2 closing mq1\n");
+        printf("P2 closing mqq1\n");
         mf_disconnect();
 
         printf("P2 disconnecting\n");
@@ -167,7 +167,7 @@ void test_messageflow_4p2mq() {
         // P3 will send
         srand(time(0));
         // mf_connect(); // in original code
-        qid = mf_open("mq2");
+        qid = mf_open("mqq2");
         while (1) {
             // n_sent = rand() % MAX_DATALEN; // original code
             n_sent = rand() % sendbuffer_len; // not in original code
@@ -180,7 +180,7 @@ void test_messageflow_4p2mq() {
         }
         mf_close(qid);
 
-        printf("P3 closing mq2\n");
+        printf("P3 closing mqq2\n");
         mf_disconnect();
 
         printf("P3 disconnecting\n");
@@ -192,7 +192,7 @@ void test_messageflow_4p2mq() {
         // P4 will receive
         srand(time(0));
         // mf_connect(); // in original code
-        qid = mf_open("mq2");
+        qid = mf_open("mqq2");
         while (1) {
             int n_received = mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);
             receivedcount++;
@@ -203,7 +203,7 @@ void test_messageflow_4p2mq() {
         }
         mf_close(qid);
 
-        printf("P4 closing mq2\n");
+        printf("P4 closing mqq2\n");
         mf_disconnect();
 
         printf("P4 disconnecting\n");
@@ -216,8 +216,8 @@ void test_messageflow_4p2mq() {
     }
 
 
-    mf_remove("mq1");
-    mf_remove("mq2");
+    mf_remove("mqq1");
+    mf_remove("mqq2");
     mf_disconnect();
 }
 

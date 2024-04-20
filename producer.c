@@ -15,7 +15,7 @@
 
 #define COUNT 10
 
-char mqname[32] = "mq1";
+char mqname[32] = "mq8";
 int totalcount = COUNT;
 
 int

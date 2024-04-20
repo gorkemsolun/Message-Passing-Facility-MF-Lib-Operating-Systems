@@ -14,7 +14,7 @@
 #include <sys/wait.h>
 #include "mf.h"
 
-char mqname[32] = "mq1";
+char mqname[32] = "mq8";
 
 int main(int argc, char** argv) {
     int qid;

@@ -26,7 +26,6 @@ void* shared_memory_address_fixed; // Start address of the shared memory region
 void* shared_memory_address_info; // Start address of the shared memory region for the shared memory information after the fixed shared memory region
 void* shared_memory_address_queues; // Start address of the message queues in the shared memory region after the info shared memory region
 int shared_memory_id; // ID of the shared memory region
-int active_processes = 0; // Number of active processes using the MF library
 char empty_sem_additon[MAXFILENAME] = "empty"; // Semaphore name addition for no message in the message queue
 char full_sem_additon[MAXFILENAME] = "full"; // Semaphore name addition for insufficient space in the message queue
 char access_mutex_sem_additon[MAXFILENAME] = "access_mutex"; // Semaphore name addition for access mutex in the message queue
@@ -141,6 +140,9 @@ int mf_init() {
     char active_processes_bytes[4];
     int_to_bytes_little_endian(0, active_processes_bytes);
     memcpy(shared_memory_address_info + sizeof(int) * 3, active_processes_bytes, 4);
+
+    // Print usable memory for the message queues
+    printf("Usable memory for the message queues: %d\n", shared_memory_size - (sizeof(char) * MF_MQ_HEADER_SIZE) * config.MAX_QUEUES_IN_SHMEM - MF_SHMEM_INFO_SIZE);
 
     return (MF_SUCCESS);
 }
@@ -624,7 +626,7 @@ int mf_remove(char* mqname) {
             strcpy(sem_name, base_sem_name);
             // Add the message queue id to the base semaphore name
             char qid_str[4];
-            sprintf(qid_str, "%d", i);
+            sprintf(qid_str, "%d", i + 1);
             strcat(sem_name, qid_str);
 
             // Assemble the semaphore name for empty message queue
@@ -751,6 +753,12 @@ int mf_close(int qid) {
 // The message, obtained from the memory space pointed to by bufptr, is copied to the message queue buffer in the shared memory of the library.
 // Data length specifies the size of the message in bytes.
 int mf_send(int qid, void* bufptr, int datalen) {
+    // Control the data length
+    if (datalen < MIN_DATALEN || datalen > MAX_DATALEN) {
+        printf("Error: Data length is not within the limits\n");
+        return (MF_ERROR);
+    }
+
     // Create a semaphore base name for the message queue
     // The semaphore base name will be "semaphore" + qid
     char sem_name[MAXFILENAME];
