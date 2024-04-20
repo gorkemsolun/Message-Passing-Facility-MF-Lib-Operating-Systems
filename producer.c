@@ -44,10 +44,17 @@ main(int argc, char** argv) {
         if (sentcount < totalcount) {
             // generate a random data size
             // n_sent = 1 + (rand() % (MAX_DATALEN - 1)); // original code
-            n_sent = rand() % sendbuffer_len; // not in original code
+            n_sent = 1 + rand() % sendbuffer_len; // not in original code
+            printf("app sending message, datalen=%d\n", n_sent);
             // data size is at least 1
             sendbuffer[0] = 1;
-            mf_send(qid, (void*)sendbuffer, n_sent);
+            int is_sent = mf_send(qid, (void*)sendbuffer, n_sent);
+
+            if (is_sent == -1) {
+                printf("send failed\n");
+                break;
+            }
+
             sentcount++;
             printf("sent data message %d\n", sentcount);
             printf("Message: %s\n", sendbuffer); // not in original code, prints entire buffer
