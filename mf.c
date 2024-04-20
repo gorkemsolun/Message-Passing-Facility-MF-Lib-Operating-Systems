@@ -155,6 +155,8 @@ int mf_init() {
         return (MF_ERROR);
     }
 
+    printf("Shared memory address fixed: %p\n", shared_memory_address_fixed);
+
     // Initialize the shared memory region by filling the region with zeros
     memset(shared_memory_address_fixed, 0, shared_memory_size);
 
@@ -190,6 +192,7 @@ int mf_destroy() {
         char mq_id_bytes[4];
         memcpy(mq_id_bytes, shared_memory_address_fixed + (i - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE, 4);
         int mq_id = bytes_to_int_little_endian(mq_id_bytes);
+        printf("Message queue id: %d\n", mq_id);
         if (mq_id == 0) {
             continue;
         }
@@ -411,13 +414,19 @@ int mf_create(char* mqname, int mqsize) {
     // Start address of the header of the message queue in the fixed shared memory region
     void* mq_header_address = shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE;
 
+    printf("Message queue header address: %p\n", mq_header_address);
+
     // Set the message queue name in the message queue header
     memcpy(mq_header_address, mqname, sizeof(char) * MAX_MQNAMESIZE);
+
+    printf("Message queue name: %s\n", mqname);
 
     // Set qid in the message queue header
     char qid_bytes[4];
     int_to_bytes_little_endian(qid, qid_bytes);
     memcpy(mq_header_address + sizeof(char) * MAX_MQNAMESIZE, qid_bytes, 4);
+
+    printf("Message queue id: %d\n", qid);
 
     // Initialize the message count to 0
     char mq_msg_count_bytes[4];
@@ -429,9 +438,14 @@ int mf_create(char* mqname, int mqsize) {
     int_to_bytes_little_endian(mqsize_bytes, mq_size_bytes);
     memcpy(mq_header_address + sizeof(char) * MAX_MQNAMESIZE + sizeof(int), mq_size_bytes, 4);
 
+    printf("Message queue size: %d\n", mqsize);
+
     // Find space for the message queue in the shared memory region through the hole list
     // The hole list will be used to find empty slots in the shared memory region
     Hole* current = holes;
+
+    printf("current: %p\n", current);
+
     while (current != NULL) {
         if (current->size >= mqsize_bytes) {
             break;
@@ -439,8 +453,12 @@ int mf_create(char* mqname, int mqsize) {
         current = current->next;
     }
 
+    printf("Hole found: %p, size: %d\n", current->start_address, current->size);
+
     // Get the start address of the message queue in the shared memory region
     void* mq_start_address = current->start_address;
+
+    printf("Message queue start address: %p\n", mq_start_address);
 
     // Update the selected hole in the hole list
     current->start_address += mqsize_bytes;
@@ -451,6 +469,8 @@ int mf_create(char* mqname, int mqsize) {
 
     // Calculate the address difference between the start address of the message queue and the start address of the shared memory region for message queues
     int mq_start_address_diff = mq_start_address - shared_memory_address_queues;
+
+    printf("Message queue start address difference: %d\n", mq_start_address_diff);
 
     // Set the address difference in the message queue header
     char mq_start_address_difference_bytes[4];

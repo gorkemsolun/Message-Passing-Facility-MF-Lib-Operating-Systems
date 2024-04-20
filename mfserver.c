@@ -53,6 +53,8 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
+    // mf_create("mq1", 16); //  create mq;  size in KB
+
     printf("mfserver initialized successfully.\n");
     printf("mfserver pid=%d\n", (int)getpid());
 

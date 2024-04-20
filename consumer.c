@@ -29,6 +29,9 @@ main(int argc, char** argv) {
 
     mf_connect();
     mf_create(mqname, 16);
+
+    printf("consumer pid=%d\n", (int)getpid());
+
     qid = mf_open(mqname);
     while (1) {
         mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);

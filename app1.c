@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
     sem1 = sem_open(semname1, O_CREAT, 0666, 0); // init sem
     sem2 = sem_open(semname2, O_CREAT, 0666, 0); // init sem
 
-    // mf_init(); // not in original code
+    mf_init(); // not in original code
 
     srand(time(0));
     printf("RAND_MAX is %d\n", RAND_MAX);

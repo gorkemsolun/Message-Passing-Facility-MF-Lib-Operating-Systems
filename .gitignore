@@ -6,3 +6,6 @@ mf
 app2
 .vscode
 mfserver
+consumer
+producer
+test-suite
