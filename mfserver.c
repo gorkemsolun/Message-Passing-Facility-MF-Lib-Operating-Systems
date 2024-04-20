@@ -14,10 +14,13 @@
 // by pressing Ctrl - C or Ctrl - D at the command line if the server is running in the foreground
 void sigint_handler(int signum) {
     printf("Caught signal, MF destroy %d\n", signum);
-    mf_destroy();
+
     if (mf_destroy() != MF_SUCCESS) {
         perror("mf_destroy failed");
     }
+
+    printf("mfserver terminated\n");
+
     exit(0);
 }
 
@@ -46,15 +49,15 @@ int main(int argc, char* argv[]) {
     // Call mf_init() to initialize the message facility
     int result = mf_init(); // will read the config file
     if (result != MF_SUCCESS) {
-    printf("mf_init failed: %d\n", result);
-        exit(1);  
+        printf("mf_init failed: %d\n", result);
+        exit(1);
     }
 
     printf("mfserver initialized successfully.\n");
     printf("mfserver pid=%d\n", (int)getpid());
 
-    while (1)
-        sleep(1000);
+    while (1) { sleep(1000); }
+
     exit(0);
 }
 

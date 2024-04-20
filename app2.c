@@ -12,7 +12,7 @@
 #include <sys/wait.h>
 #include "mf.h"
 
-#define COUNT 10
+#define COUNT 2
 
 int totalcount = COUNT;
 
@@ -31,8 +31,8 @@ int main(int argc, char** argv) {
 
     srand(time(0));
 
-    test_messageflow_2p1mq();
-    //test_messageflow_4p2mq();
+    //test_messageflow_2p1mq();
+    test_messageflow_4p2mq();
 
     return 0;
 }
@@ -97,28 +97,37 @@ void test_messageflow_2p1mq() {
 
 void test_messageflow_4p2mq() {
     int ret1, qid;
-    char sendbuffer[MAX_DATALEN];
+    // char sendbuffer[MAX_DATALEN]; // original code
+    char sendbuffer[] = "Hello, World!AABBCCDDEEFFGGHHIIUUYYTTHHNNMMOOKKLLPPCCVVDDSSAAQQWWEE11223344556677889900--zzxxccvvbbnnmm<<TTGGHHYYUUJJKKIIOOLLPPMMNNBBVVCCXXZZAASSDDFFGGHHYYTTRREEWWQQ"; // not in original code
+    int sendbuffer_len = strlen(sendbuffer); // not in original code
     int n_sent;
     char recvbuffer[MAX_DATALEN];
     int sentcount = 0;
     int receivedcount = 0;
     int i;
 
-    mf_connect();
+    //mf_init(); // not in original code
+
+    printf("RAND_MAX is %d\n", RAND_MAX);
+
+    mf_connect(); // in original code
     mf_create("mq1", 16); //  create mq;  size in KB
     mf_create("mq2", 16); //  create mq;  size in KB
 
-
+    printf("mq1 and mq2 created\n");
     ret1 = fork();
     if (ret1 == 0) {
         // P1
         // P1 will send
         srand(time(0));
-        mf_connect();
+        mf_connect(); // in original code
         qid = mf_open("mq1");
         while (1) {
-            n_sent = rand() % MAX_DATALEN;
+            // n_sent = rand() % MAX_DATALEN; // original code
+            n_sent = rand() % sendbuffer_len; // not in original code
             mf_send(qid, (void*)sendbuffer, n_sent);
+            printf("app sent message, datalen=%d\n", n_sent); // not in original code
+            printf("Message: %s\n", sendbuffer); // not in original code, prints entire buffer
             sentcount++;
             if (sentcount == totalcount)
                 break;
@@ -132,11 +141,13 @@ void test_messageflow_4p2mq() {
         // P2
         // P2 will receive
         srand(time(0));
-        mf_connect();
+        mf_connect(); // in original code
         qid = mf_open("mq1");
         while (1) {
-            mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);
+            int n_received = mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);
             receivedcount++;
+            printf("app received message, datalen=%d\n", n_received);
+            printf("Message: %s\n", recvbuffer); // not in original code, prints the buffer, prints maximum so far
             if (receivedcount == totalcount)
                 break;
         }
@@ -151,11 +162,14 @@ void test_messageflow_4p2mq() {
         // P3
         // P3 will send
         srand(time(0));
-        mf_connect();
+        // mf_connect(); // in original code
         qid = mf_open("mq2");
         while (1) {
-            n_sent = rand() % MAX_DATALEN;
+            // n_sent = rand() % MAX_DATALEN; // original code
+            n_sent = rand() % sendbuffer_len; // not in original code
             mf_send(qid, (void*)sendbuffer, n_sent);
+            printf("app sent message, datalen=%d\n", n_sent); // not in original code
+            printf("Message: %s\n", sendbuffer); // not in original code, prints entire buffer
             sentcount++;
             if (sentcount == totalcount)
                 break;
@@ -169,11 +183,13 @@ void test_messageflow_4p2mq() {
         // P4
         // P4 will receive
         srand(time(0));
-        mf_connect();
+        // mf_connect(); // in original code
         qid = mf_open("mq2");
         while (1) {
-            mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);
+            int n_received = mf_recv(qid, (void*)recvbuffer, MAX_DATALEN);
             receivedcount++;
+            printf("app received message, datalen=%d\n", n_received);
+            printf("Message: %s\n", recvbuffer); // not in original code, prints the buffer, prints maximum so far
             if (receivedcount == totalcount)
                 break;
         }
@@ -182,8 +198,11 @@ void test_messageflow_4p2mq() {
         exit(0);
     }
 
-    for (i = 0; i < 4; ++i)
+
+    for (i = 0; i < 4; ++i) {
         wait(NULL);
+    }
+
 
     mf_remove("mq1");
     mf_remove("mq2");

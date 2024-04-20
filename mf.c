@@ -134,6 +134,8 @@ int mf_init() {
         return (MF_ERROR);
     }
 
+    printf("Shared memory id: %d\n", shared_memory_id);
+
     // Set the size of the shared memory region
     int shared_memory_size = config.SHMEM_SIZE * 1024 * sizeof(char);
     int shared_memory_status = ftruncate(shared_memory_id, shared_memory_size);
@@ -182,37 +184,16 @@ int mf_init() {
 // Destroys the shared memory region
 // Destroys the semaphores
 int mf_destroy() {
-    // Remove the synchronization objects
-
-    // Destroy the shared memory region
-    // Unmap the shared memory region from the address space of the calling process
-    int shared_memory_status = munmap(shared_memory_address_fixed, config.SHMEM_SIZE);
-    if (shared_memory_status == -1) {
-        printf("Error: Could not unmap the shared memory region from the address space of the calling process\n");
-        return (MF_ERROR);
-    }
-
-    // Close the shared memory region
-    int shared_memory_close_status = close(shared_memory_id);
-    if (shared_memory_close_status == -1) {
-        printf("Error: Could not close the shared memory region\n");
-        return (MF_ERROR);
-    }
-
-    // Remove the shared memory region, unlink the shared memory object
-    int shared_memory_remove_status = shm_unlink(config.SHMEM_NAME);
-    if (shared_memory_remove_status == -1) {
-        printf("Error: Could not remove the shared memory region\n");
-        return (MF_ERROR);
-    }
-
-    // Free the hole list
-    free_holes(&holes);
-
-    // TODO: Free global variables, check if there are any global variables that need to be freeds
-
     // Destroy the semaphores for each message queue
     for (int i = 1; i <= config.MAX_QUEUES_IN_SHMEM; i++) {
+        // Control if the message queue is created by checking the message queue id
+        char mq_id_bytes[4];
+        memcpy(mq_id_bytes, shared_memory_address_fixed + (i - 1) * MF_MQ_HEADER_SIZE + sizeof(char) * MAX_MQNAMESIZE, 4);
+        int mq_id = bytes_to_int_little_endian(mq_id_bytes);
+        if (mq_id == 0) {
+            continue;
+        }
+
         // Create a semaphore base name for the message queue
         // The semaphore base name will be "semaphore" + qid
         char sem_name[MAXFILENAME];
@@ -257,6 +238,39 @@ int mf_destroy() {
         }
     }
 
+    // Destroy the shared memory region
+    // Unmap the shared memory region from the address space of the calling process
+    int shared_memory_status = munmap(shared_memory_address_fixed, config.SHMEM_SIZE);
+    if (shared_memory_status == -1) {
+        printf("Error: Could not unmap the shared memory region from the address space of the calling process\n");
+        return (MF_ERROR);
+    }
+
+    printf("Shared memory id: %d\n", shared_memory_id);
+
+    // Close the shared memory region
+    int shared_memory_close_status = close(shared_memory_id);
+    if (shared_memory_close_status == -1) {
+        printf("Error: Could not close the shared memory region\n");
+        return (MF_ERROR);
+    }
+
+    // Remove the shared memory region, unlink the shared memory object
+    int shared_memory_remove_status = shm_unlink(config.SHMEM_NAME);
+    if (shared_memory_remove_status == -1) {
+        printf("Error: Could not remove the shared memory region\n");
+        return (MF_ERROR);
+    }
+    
+    printf("Shared memory region removed\n");
+
+    // Free the hole list
+     free_holes(&holes);
+
+    printf("Hole list freed\n");
+
+    // TODO: Free global variables, check if there are any global variables that need to be freeds
+
     return (MF_SUCCESS);
 }
 
@@ -272,21 +286,16 @@ int mf_connect() {
     }
 
     // Create a shared memory region or open an existing shared memory region
-    shared_memory_id = shm_open(config.SHMEM_NAME, O_CREAT | O_RDWR, 0666);
+    shared_memory_id = shm_open(config.SHMEM_NAME, O_RDWR, 0666);
     if (shared_memory_id == -1) {
         printf("Error: Could not create or open the shared memory region\n");
         return (MF_ERROR);
     }
 
+    printf("Shared memory id: %d\n", shared_memory_id);
+
     // Set the size of the shared memory region
     int shared_memory_size = config.SHMEM_SIZE * 1024 * sizeof(char);
-    int shared_memory_status = ftruncate(shared_memory_id, shared_memory_size);
-    if (shared_memory_status == -1) {
-        printf("Error: Could not set the size of the shared memory region\n");
-        close(shared_memory_id);
-        shm_unlink(config.SHMEM_NAME);
-        return (MF_ERROR);
-    }
 
     // Map the shared memory region to the address space of the calling process
     shared_memory_address_fixed = mmap(NULL, shared_memory_size, PROT_READ | PROT_WRITE, MAP_SHARED, shared_memory_id, 0);
@@ -297,11 +306,15 @@ int mf_connect() {
         return (MF_ERROR);
     }
 
+    printf("Shared memory address fixed: %p\n", shared_memory_address_fixed);
+
     // Increment the number of active processes
     active_processes++;
 
     // Calculate the shared memory queue region
     shared_memory_address_queues = shared_memory_address_fixed + (sizeof(char) * MF_MQ_HEADER_SIZE) * config.MAX_QUEUES_IN_SHMEM;
+
+    printf("Shared memory address queues: %p\n", shared_memory_address_queues);
 
     return (MF_SUCCESS);
 }
@@ -345,8 +358,12 @@ int mf_create(char* mqname, int mqsize) {
         return (MF_ERROR);
     }
 
+    printf("Message queue size: %d\n", mqsize);
+
     // Calculate the message queue size in bytes
     int mqsize_bytes = mqsize * 1024 * sizeof(char);
+
+    printf("Message queue size in bytes: %d\n", mqsize_bytes);
 
     // Assign a unique ID to the message queue, search through fixed shared memory region for an empty slot by checking the message queue ids
     // The message queue id should be between 1 and config.MAX_QUEUES_IN_SHMEM inclusive
@@ -370,6 +387,8 @@ int mf_create(char* mqname, int mqsize) {
 
         qid++;
     }
+
+    printf("Message queue id: %d\n", qid);
 
     // Start address of the header of the message queue in the fixed shared memory region
     void* mq_header_address = shared_memory_address_fixed + (qid - 1) * MF_MQ_HEADER_SIZE;
