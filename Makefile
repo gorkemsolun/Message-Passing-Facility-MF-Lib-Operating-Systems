@@ -2,7 +2,7 @@
 CC	:= gcc
 CFLAGS := -g -Wall
 
-TARGETS :=  libmf.a  app1  app1-2 app2 test-suite producer consumer mfserver 
+TARGETS :=  libmf.a app1 app1-2 app2 producer consumer mfserver 
 
 # Make sure that 'all' is the first target
 all: $(TARGETS)
@@ -35,12 +35,6 @@ app2.o: app2.c  mf.c mf.h
 
 app2: app2.o libmf.a mf.o
 	gcc $(CFLAGS) -o $@ app2.o $(MF_LIB)
-	
-test-suite: test-suite.o libmf.a mf.o
-	gcc $(CFLAGS) -o $@ test-suite.o $(MF_LIB)
-
-test-suite.o: test-suite.c  mf.c mf.h
-	gcc -c $(CFLAGS)  -o $@ test-suite.c
 
 producer.o: producer.c  mf.c mf.h
 	gcc -c $(CFLAGS)  -o $@ producer.c
@@ -60,11 +54,10 @@ mfserver: mfserver.c  mf.c mf.h
 mfserver: mfserver.o libmf.a mf.o
 	gcc $(CFLAGS) -o $@ mfserver.o $(MF_LIB)
 
-
 test: test.c
 	gcc -g -Wall  -o  test test.c
 
 clean:
-	rm -rf core  *.o *.out *~ $(TARGETS) app1 app1-2 app2 test-suite producer consumer
+	rm -rf core  *.o *.out *~ $(TARGETS) app1 app1-2 app2 producer consumer
 	
 	
