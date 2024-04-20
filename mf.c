@@ -93,6 +93,7 @@ void* shared_memory_address_queues; // Start address of the message queues in th
 int shared_memory_id; // ID of the shared memory region
 int msg_queue_count = 0; // Number of message queues in the shared memory region
 Hole* holes; // Hole list for finding empty slots in the shared memory region
+int active_processes = 0; // Number of active processes using the MF library
 char empty_sem_additon[MAXFILENAME] = "empty"; // Semaphore name addition for no message in the message queue
 char full_sem_additon[MAXFILENAME] = "full"; // Semaphore name addition for insufficient space in the message queue
 char access_mutex_sem_additon[MAXFILENAME] = "access_mutex"; // Semaphore name addition for access mutex in the message queue
@@ -210,9 +211,51 @@ int mf_destroy() {
 
     // TODO: Free global variables, check if there are any global variables that need to be freeds
 
-    // Destroy the semaphores
+    // Destroy the semaphores for each message queue
+    for (int i = 1; i <= config.MAX_QUEUES_IN_SHMEM; i++) {
+        // Create a semaphore base name for the message queue
+        // The semaphore base name will be "semaphore" + qid
+        char sem_name[MAXFILENAME];
+        strcpy(sem_name, base_sem_name);
+        // Add the message queue id to the base semaphore name
+        char qid_str[4];
+        sprintf(qid_str, "%d", i);
+        strcat(sem_name, qid_str);
 
+        // Assemble the semaphore name for empty message queue
+        char empty_sem_name[MAXFILENAME];
+        strcpy(empty_sem_name, sem_name);
+        strcat(empty_sem_name, empty_sem_additon);
 
+        // Assemble the semaphore name for full message queue
+        char full_sem_name[MAXFILENAME];
+        strcpy(full_sem_name, sem_name);
+        strcat(full_sem_name, full_sem_additon);
+
+        // Assemble the semaphore name for access mutex in the message queue
+        char access_mutex_sem_name[MAXFILENAME];
+        strcpy(access_mutex_sem_name, sem_name);
+        strcat(access_mutex_sem_name, access_mutex_sem_additon);
+
+        // Destroy the semaphores
+        int empty_sem_status = sem_unlink(empty_sem_name);
+        if (empty_sem_status == -1) {
+            printf("Error: Could not destroy the semaphore for the empty message queue\n");
+            return (MF_ERROR);
+        }
+
+        int full_sem_status = sem_unlink(full_sem_name);
+        if (full_sem_status == -1) {
+            printf("Error: Could not destroy the semaphore for the full message queue\n");
+            return (MF_ERROR);
+        }
+
+        int access_mutex_sem_status = sem_unlink(access_mutex_sem_name);
+        if (access_mutex_sem_status == -1) {
+            printf("Error: Could not destroy the semaphore for the access mutex in the message queue\n");
+            return (MF_ERROR);
+        }
+    }
 
     return (MF_SUCCESS);
 }
@@ -254,6 +297,9 @@ int mf_connect() {
         return (MF_ERROR);
     }
 
+    // Increment the number of active processes
+    active_processes++;
+
     // Calculate the shared memory queue region
     shared_memory_address_queues = shared_memory_address_fixed + (sizeof(char) * MF_MQ_HEADER_SIZE) * config.MAX_QUEUES_IN_SHMEM;
 
@@ -264,6 +310,15 @@ int mf_connect() {
 // The library will remove this process from the list of active processes utilizing the library.
 // TODO: Implement the mf_disconnect() function 
 int mf_disconnect() {
+    // Unmap the shared memory region from the address space of the calling process
+    int shared_memory_status = munmap(shared_memory_address_fixed, config.SHMEM_SIZE);
+    if (shared_memory_status == -1) {
+        printf("Error: Could not unmap the shared memory region from the address space of the calling process\n");
+        return (MF_ERROR);
+    }
+
+    // Decrement the number of active processes
+    active_processes--;
 
 
     return (MF_SUCCESS);
@@ -272,7 +327,6 @@ int mf_disconnect() {
 // This function creates a new message queue and initializes the necessary information for it.
 // Space must be allocated from shared memory for message queues of various sizes.
 // Solve the problem of allocating space for message queues of various sizes
-// TODO: Create a semaphore for each message queue
 // Assign a unique ID to each message queue (qid)
 // Allocate space for the message queue in the shared memory region
 // Initialize the message queue structure
@@ -519,7 +573,7 @@ int mf_close(int qid) {
 }
 
 // This function sends a message to the message queue specified by the message queue ID (qid).
-// TODO: It can block the caller until space is available in the queue.
+// It can block the caller until space is available in the queue.
 // The message, obtained from the memory space pointed to by bufptr, is copied to the message queue buffer in the shared memory of the library.
 // Data length specifies the size of the message in bytes.
 int mf_send(int qid, void* bufptr, int datalen) {
@@ -675,7 +729,7 @@ int mf_send(int qid, void* bufptr, int datalen) {
             // So, we have 2 cases in the second case.
             // Check the start address of the message queue and the start address of the next message.
             // If the message does not fit in the message queue, block the caller until space is available in the queue
-            // TODO: Block the caller until space is available in the queue
+            // Block the caller until space is available in the queue
             // Else, add the message to the start of the message queue
 
             // 1. The difference between the end address of the last message and end of the message queue is bigger than the start address of the next message
@@ -808,6 +862,12 @@ int mf_send(int qid, void* bufptr, int datalen) {
 
     // Signal full semaphore
     sem_post(full_sem);
+
+    // Close the semaphores
+    sem_close(empty_sem);
+    sem_close(full_sem);
+    sem_close(access_mutex_sem);
+
 
     return (MF_SUCCESS);
 }
@@ -984,6 +1044,11 @@ int mf_recv(int qid, void* bufptr, int bufsize) {
     // Signal empty semaphore
     sem_post(empty_sem);
 
+    // Close the semaphores
+    sem_close(empty_sem);
+    sem_close(full_sem);
+    sem_close(access_mutex_sem);
+
     // Return the actual message length
     return bufsize;
 }
@@ -1087,9 +1152,6 @@ int read_config_file(struct MFConfig* config) {
             memmove(config->SHMEM_NAME, config->SHMEM_NAME + 1, strlen(config->SHMEM_NAME));
         }
     }
-
-    // TODO: Check if all the fields are filled
-    // TODO: Check if the values are valid and within the limits, this may be necessary
 
     // Debugging: Print the MFConfig structure
     print_MFConfig(config);
